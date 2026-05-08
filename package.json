@@ -1,0 +1,31 @@
+{
+  "name": "musicalrecord",
+  "version": "1.0.0",
+  "description": "私人使用的观剧信息记录与管理产品，支持手机端访问。",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@ant-design/icons": "^6.2.2",
+    "@supabase/supabase-js": "^2.105.3",
+    "antd": "^6.3.7",
+    "antd-mobile": "^5.42.3",
+    "antd-mobile-icons": "^0.3.0",
+    "react": "^19.2.6",
+    "react-dom": "^19.2.6",
+    "react-router-dom": "^7.15.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^6.0.1",
+    "typescript": "^6.0.3",
+    "vite": "^8.0.11"
+  }
+}
