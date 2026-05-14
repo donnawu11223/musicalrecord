@@ -5,7 +5,6 @@ export type MusicalType = '中国音乐剧' | '非中音乐剧' | '话剧' | '�
 export interface Musical {
   id: string
   name: string
-  poster: string
   type: MusicalType
   brand: string
   plot: string
@@ -17,7 +16,6 @@ export interface Musical {
 export interface Artist {
   id: string
   name: string
-  avatar: string
   created_at: string
   updated_at: string
 }
@@ -30,9 +28,6 @@ export interface Show {
   city: string
   theater: string
   seat: string
-  ticket_price: number
-  paid_amount: number
-  other_expense: number
   plot_score: number
   visual_score: number
   acting_score: number
@@ -68,7 +63,6 @@ export interface MusicalCard extends Musical {
 // 场次卡片数据
 export interface ShowCard extends Show {
   musical_name: string
-  musical_poster: string
   musical_type: MusicalType
 }
 
@@ -82,10 +76,7 @@ export interface ShowDetail extends Show {
 export interface MusicalDetail extends Musical {
   watch_count: number
   avg_score: number
-  total_ticket_price: number
-  total_paid_amount: number
-  total_other_expense: number
-  artist_stats: { artist_id: string; artist_name: string; artist_avatar: string; count: number }[]
+  artist_stats: { artist_id: string; artist_name: string; count: number }[]
   shows: (Show & { avg_score: number })[]
 }
 
@@ -93,9 +84,6 @@ export interface MusicalDetail extends Musical {
 export interface ArtistDetail extends Artist {
   watch_count: number
   avg_score: number
-  total_ticket_price: number
-  total_paid_amount: number
-  total_other_expense: number
   musical_stats: { musical_id: string; musical_name: string; count: number }[]
   shows: (Show & ActorReview & { musical_name: string; show_id: string })[]
 }

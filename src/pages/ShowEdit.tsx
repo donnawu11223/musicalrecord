@@ -29,9 +29,6 @@ export default function ShowEditPage() {
     city: '',
     theater: '',
     seat: '',
-    ticket_price: 0,
-    paid_amount: 0,
-    other_expense: 0,
     plot_score: 0,
     visual_score: 0,
     acting_score: 0,
@@ -115,9 +112,6 @@ export default function ShowEditPage() {
         city: data.city,
         theater: data.theater,
         seat: data.seat,
-        ticket_price: data.ticket_price,
-        paid_amount: data.paid_amount,
-        other_expense: data.other_expense,
         plot_score: data.plot_score,
         visual_score: data.visual_score,
         acting_score: data.acting_score,
@@ -464,9 +458,6 @@ export default function ShowEditPage() {
         city: formData.city.trim(),
         theater: formData.theater.trim(),
         seat: formData.seat.trim(),
-        ticket_price: formData.ticket_price,
-        paid_amount: formData.paid_amount,
-        other_expense: formData.other_expense,
         plot_score: formData.plot_score,
         visual_score: formData.visual_score,
         acting_score: formData.acting_score,
@@ -602,46 +593,6 @@ export default function ShowEditPage() {
               value={formData.seat}
               onChange={e => setFormData({ ...formData, seat: e.target.value })}
             />
-          </div>
-
-          {/* 票价、实付、周边 */}
-          <div style={styles.row}>
-            <div style={{ ...styles.formItem, flex: 1 }}>
-              <label style={styles.label}>票价</label>
-              <div style={styles.priceWrapper}>
-                <span style={styles.pricePrefix}>￥</span>
-                <input
-                  type="number"
-                  style={styles.priceInput}
-                  value={formData.ticket_price}
-                  onChange={e => setFormData({ ...formData, ticket_price: Number(e.target.value) })}
-                />
-              </div>
-            </div>
-            <div style={{ ...styles.formItem, flex: 1 }}>
-              <label style={styles.label}>实付</label>
-              <div style={styles.priceWrapper}>
-                <span style={styles.pricePrefix}>￥</span>
-                <input
-                  type="number"
-                  style={styles.priceInput}
-                  value={formData.paid_amount}
-                  onChange={e => setFormData({ ...formData, paid_amount: Number(e.target.value) })}
-                />
-              </div>
-            </div>
-            <div style={{ ...styles.formItem, flex: 1 }}>
-              <label style={styles.label}>周边</label>
-              <div style={styles.priceWrapper}>
-                <span style={styles.pricePrefix}>￥</span>
-                <input
-                  type="number"
-                  style={styles.priceInput}
-                  value={formData.other_expense}
-                  onChange={e => setFormData({ ...formData, other_expense: Number(e.target.value) })}
-                />
-              </div>
-            </div>
           </div>
         </section>
 
@@ -1143,27 +1094,6 @@ const styles: Record<string, React.CSSProperties> = {
   row: {
     display: 'flex',
     gap: '16px'
-  },
-  priceWrapper: {
-    position: 'relative',
-    display: 'flex',
-    alignItems: 'center'
-  },
-  pricePrefix: {
-    position: 'absolute',
-    left: '14px',
-    color: '#707979',
-    fontSize: '14px'
-  },
-  priceInput: {
-    width: '100%',
-    padding: '12px 14px 12px 28px',
-    border: '1px solid #e3e2e0',
-    borderRadius: '12px',
-    fontSize: '14px',
-    backgroundColor: '#ffffff',
-    outline: 'none',
-    transition: 'border-color 0.2s'
   },
   scoreCard: {
     backgroundColor: '#ffffff',

@@ -34,14 +34,15 @@
     * 中间为页面标题，“场次记录”
 * 底部导航栏状态为选中“场次”
 * 中间主体信息用于展示场次卡片
-    * 场次卡片一行4个
+    * 场次卡片一行3个
     * 场次卡片展示以下信息：
-        * 剧目海报（musical.poster）
         * 场次剧名（musical.name）
+        * 城市&剧院，show.city & show.theater
+        * 座位，show.seat
         * 场次时间（show.show_time），日期格式
     * 卡片展示顺序为按照 show.show_time 倒序排序
     * 点击卡片后进入“场次详情页”
-* 页面对应的ui地址："D:\bigdatabase\snacks\musicalrecord\ui\_1"
+* 页面对应的ui地址："D:\bigdatabase\snacks\musicalrecord\ui\_9"
 
 ### 场次详情页
 

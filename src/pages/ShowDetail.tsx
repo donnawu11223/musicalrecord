@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { Dialog } from 'antd-mobile'
 import { getShowById, deleteShow } from '../services/show'
-import DefaultPoster from '../components/DefaultPoster'
 import type { ShowDetail, MusicalType } from '../types'
 
 const TYPE_TAG_STYLES: Record<MusicalType, React.CSSProperties> = {
@@ -174,11 +173,6 @@ export default function ShowDetailPage() {
       <main style={styles.content}>
         {/* 场次信息卡片 */}
         <section style={styles.infoCard}>
-          {show.musical.poster ? (
-            <img src={show.musical.poster} alt={show.musical.name} style={styles.poster} />
-          ) : (
-            <DefaultPoster size={400} style={{ width: '100%', aspectRatio: '3/4', objectFit: 'cover' }} />
-          )}
           <div style={styles.infoContent}>
             <button style={styles.nameButton} onClick={() => navigate(`/musicals/${show.musical.id}`)}>{show.musical.name}</button>
             <div style={styles.infoList}>
@@ -193,18 +187,6 @@ export default function ShowDetailPage() {
               <div style={styles.infoRow}>
                 <span className="material-symbols-outlined" style={styles.infoIcon}>event_seat</span>
                 <span style={styles.infoText}>{show.seat}</span>
-              </div>
-              <div style={styles.infoRow}>
-                <span className="material-symbols-outlined" style={styles.infoIcon}>sell</span>
-                <span style={styles.infoText}>￥{show.ticket_price}</span>
-              </div>
-              <div style={styles.infoRow}>
-                <span className="material-symbols-outlined" style={styles.infoIcon}>payments</span>
-                <span style={styles.infoText}>￥{show.paid_amount}</span>
-              </div>
-              <div style={styles.infoRow}>
-                <span className="material-symbols-outlined" style={styles.infoIcon}>menu_book</span>
-                <span style={styles.infoText}>￥{show.other_expense}</span>
               </div>
               <div style={styles.infoRow}>
                 <span className="material-symbols-outlined" style={styles.infoIcon}>category</span>
@@ -402,12 +384,6 @@ const styles: Record<string, React.CSSProperties> = {
     boxShadow: '0 8px 24px rgba(53, 102, 104, 0.06)',
     overflow: 'hidden',
     border: '1px solid rgba(192, 200, 200, 0.3)'
-  },
-  poster: {
-    width: '100%',
-    aspectRatio: '3/4',
-    objectFit: 'cover',
-    borderRadius: '15px'
   },
   infoContent: {
     width: '100%',

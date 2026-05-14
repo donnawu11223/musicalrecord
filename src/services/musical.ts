@@ -83,23 +83,19 @@ export async function getMusicalById(id: string) {
       }, 0) / watchCount) * 2 * 10) / 10
     : 0
 
-  const totalTicketPrice = shows?.reduce((sum, s) => sum + (s.ticket_price || 0), 0) || 0
-  const totalPaidAmount = shows?.reduce((sum, s) => sum + (s.paid_amount || 0), 0) || 0
-  const totalOtherExpense = shows?.reduce((sum, s) => sum + (s.other_expense || 0), 0) || 0
-
   // 获取演员统计
   const { data: actorReviews, error: actorError } = await supabase
     .from('actor_review')
     .select(`
       artist_id,
-      artist:artist(id, name, avatar)
+      artist:artist(id, name)
     `)
     .in('show_id', shows?.map(s => s.id) || [])
 
   if (actorError) throw actorError
 
   // 统计演员参演次数
-  const artistStats = new Map<string, { artist_id: string; artist_name: string; artist_avatar: string; count: number }>()
+  const artistStats = new Map<string, { artist_id: string; artist_name: string; count: number }>()
   actorReviews?.forEach((review: any) => {
     const artist = review.artist
     if (artist) {
@@ -110,7 +106,6 @@ export async function getMusicalById(id: string) {
         artistStats.set(artist.id, {
           artist_id: artist.id,
           artist_name: artist.name,
-          artist_avatar: artist.avatar,
           count: 1
         })
       }
@@ -127,9 +122,6 @@ export async function getMusicalById(id: string) {
     ...musical,
     watch_count: watchCount,
     avg_score: Math.round(avgScore * 10) / 10,
-    total_ticket_price: totalTicketPrice,
-    total_paid_amount: totalPaidAmount,
-    total_other_expense: totalOtherExpense,
     artist_stats: Array.from(artistStats.values()).sort((a, b) => b.count - a.count),
     shows: showsWithScore
   }
@@ -181,45 +173,6 @@ export async function deleteMusical(id: string) {
     .eq('id', id)
 
   if (error) throw error
-}
-
-// 上传海报图片
-export async function uploadPoster(file: File): Promise<string> {
-  const fileExt = file.name.split('.').pop()
-  const fileName = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}.${fileExt}`
-  const filePath = `posters/${fileName}`
-
-  const { error: uploadError } = await supabase.storage
-    .from('posters')
-    .upload(filePath, file)
-
-  if (uploadError) throw uploadError
-
-  const { data: { publicUrl } } = supabase.storage
-    .from('posters')
-    .getPublicUrl(filePath)
-
-  return publicUrl
-}
-
-// 删除海报图片
-export async function deletePoster(url: string): Promise<void> {
-  if (!url) return
-
-  // 从URL中提取文件路径
-  const urlObj = new URL(url)
-  const pathMatch = urlObj.pathname.match(/\/storage\/v1\/object\/public\/posters\/(.+)$/)
-  if (!pathMatch) return
-
-  const filePath = pathMatch[1]
-
-  const { error } = await supabase.storage
-    .from('posters')
-    .remove([filePath])
-
-  if (error) {
-    console.error('删除图片失败:', error)
-  }
 }
 
 // 获取所有剧目名称（用于下拉选择）

@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { showToast } from '../components/Toast'
-import { getMusicalById, createMusical, updateMusical, uploadPoster, deletePoster, getMusicalNames } from '../services/musical'
+import { getMusicalById, createMusical, updateMusical, getMusicalNames } from '../services/musical'
 import type { MusicalType } from '../types'
 
 const TYPE_OPTIONS: MusicalType[] = ['中国音乐剧', '非中音乐剧', '话剧', '舞剧']
@@ -10,18 +10,15 @@ export default function MusicalEditPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const isEdit = !!id
-  const fileInputRef = useRef<HTMLInputElement>(null)
   const typePickerRef = useRef<HTMLDivElement>(null)
   const [pickerPosition, setPickerPosition] = useState({ top: 0, left: 0, width: 0 })
 
   const [formData, setFormData] = useState({
     name: '',
-    poster: '',
     type: '' as MusicalType | '',
     brand: '',
     plot: ''
   })
-  const [uploading, setUploading] = useState(false)
   const [showTypePicker, setShowTypePicker] = useState(false)
 
   useEffect(() => {
@@ -35,7 +32,6 @@ export default function MusicalEditPage() {
       const data = await getMusicalById(musicalId)
       setFormData({
         name: data.name,
-        poster: data.poster,
         type: data.type,
         brand: data.brand,
         plot: data.plot
@@ -48,38 +44,6 @@ export default function MusicalEditPage() {
 
   const handleBack = () => {
     navigate(-1)
-  }
-
-  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-
-    if (!file.type.startsWith('image/')) {
-      showToast({ content: '请选择图片文件', icon: 'fail' })
-      return
-    }
-
-    if (file.size > 50 * 1024) {
-      showToast({ content: '图片大小不能超过50KB', icon: 'fail' })
-      return
-    }
-
-    try {
-      setUploading(true)
-      const oldPoster = formData.poster
-      const url = await uploadPoster(file)
-      setFormData({ ...formData, poster: url })
-      // 删除旧图片
-      if (oldPoster) {
-        await deletePoster(oldPoster)
-      }
-      showToast({ content: '上传成功', icon: 'success' })
-    } catch (error) {
-      console.error('上传失败:', error)
-      showToast({ content: '上传失败', icon: 'fail' })
-    } finally {
-      setUploading(false)
-    }
   }
 
   const handleSubmit = async () => {
@@ -112,7 +76,6 @@ export default function MusicalEditPage() {
     try {
       const musicalData = {
         name: formData.name.trim(),
-        poster: formData.poster,
         type: formData.type,
         brand: formData.brand.trim(),
         plot: formData.plot.trim()
@@ -164,36 +127,6 @@ export default function MusicalEditPage() {
 
       {/* Main Content */}
       <main style={styles.content}>
-        {/* Photo Upload Section */}
-        <section style={styles.uploadSection}>
-          <button
-            style={{
-              ...styles.uploadBtn,
-              ...(formData.poster ? styles.uploadBtnWithImage : {})
-            }}
-            onClick={() => fileInputRef.current?.click()}
-          >
-            {formData.poster ? (
-              <img src={formData.poster} alt="海报" style={styles.posterImage} />
-            ) : (
-              <>
-                <div style={styles.uploadIconWrapper}>
-                  <span className="material-symbols-outlined" style={styles.uploadIcon}>add_a_photo</span>
-                </div>
-                <span style={styles.uploadText}>上传海报</span>
-              </>
-            )}
-            {uploading && <div style={styles.uploading}>上传中...</div>}
-          </button>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/*"
-            style={{ display: 'none' }}
-            onChange={handleImageUpload}
-          />
-        </section>
-
         {/* Form Section */}
         <section style={styles.form}>
           <div style={styles.formItem}>
@@ -328,72 +261,7 @@ const styles: Record<string, React.CSSProperties> = {
     margin: '0 auto',
     display: 'flex',
     flexDirection: 'column',
-    alignItems: 'center',
     gap: '24px'
-  },
-  uploadSection: {
-    width: '100%',
-    display: 'flex',
-    justifyContent: 'center',
-    paddingTop: '16px'
-  },
-  uploadBtn: {
-    position: 'relative',
-    width: '150px',
-    height: '200px',
-    borderRadius: '12px',
-    backgroundColor: '#efeeeb',
-    border: '2px dashed #c0c8c8',
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: '6px',
-    cursor: 'pointer',
-    transition: 'border-color 0.2s',
-    overflow: 'hidden'
-  },
-  uploadBtnWithImage: {
-    border: 'none',
-    backgroundColor: '#ffffff'
-  },
-  posterImage: {
-    width: '100%',
-    height: '100%',
-    objectFit: 'cover',
-    borderRadius: '12px'
-  },
-  uploadIconWrapper: {
-    width: '40px',
-    height: '40px',
-    borderRadius: '50%',
-    backgroundColor: 'rgba(168, 218, 220, 0.3)',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    color: '#356668'
-  },
-  uploadIcon: {
-    fontSize: '24px'
-  },
-  uploadText: {
-    fontSize: '12px',
-    fontWeight: 500,
-    color: '#404848'
-  },
-  uploading: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: 'rgba(250, 248, 247, 0.8)',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: '12px',
-    fontSize: '14px',
-    color: '#356668'
   },
   form: {
     width: '100%',

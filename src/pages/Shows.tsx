@@ -2,7 +2,6 @@ import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Empty } from 'antd-mobile'
 import { getShows, getShowYears } from '../services/show'
-import DefaultPoster from '../components/DefaultPoster'
 import type { ShowCard, MusicalType } from '../types'
 
 const TYPE_OPTIONS: { label: string; value: MusicalType | '' }[] = [
@@ -99,9 +98,27 @@ export default function Shows() {
     setFilterExpanded(null)
   }
 
-  const formatDate = (dateStr: string) => {
+  const formatDateParts = (dateStr: string) => {
     const date = new Date(dateStr)
-    return `${date.getFullYear()}/${String(date.getMonth() + 1).padStart(2, '0')}/${String(date.getDate()).padStart(2, '0')}`
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+    return {
+      month: months[date.getMonth()],
+      day: date.getDate(),
+      year: date.getFullYear(),
+      time: `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`
+    }
+  }
+
+  // 剧目类型与颜色映射
+  const typeColorMap: Record<MusicalType, { bg: string; text: string }> = {
+    '中国音乐剧': { bg: '#a8dadc', text: '#1a4e50' }, // 青绿色
+    '非中音乐剧': { bg: '#ffb6c1', text: '#6b3741' }, // 粉红色
+    '话剧': { bg: '#d3cbff', text: '#473d81' },       // 浅紫色
+    '舞剧': { bg: '#b9ecee', text: '#002021' },       // 浅青色
+  }
+
+  const getTypeColor = (type: MusicalType) => {
+    return typeColorMap[type] || { bg: '#a8dadc', text: '#1a4e50' }
   }
 
   return (
@@ -198,29 +215,54 @@ export default function Shows() {
           <Empty description="暂无场次记录" />
         ) : (
           <div style={styles.grid}>
-            {shows.map(show => (
-              <article
-                key={show.id}
-                style={styles.card}
-                onClick={() => handleCardClick(show.id)}
-              >
-                <div style={styles.posterWrapper}>
-                  {show.musical_poster ? (
-                    <img
-                      src={show.musical_poster}
-                      alt={show.musical_name}
-                      style={styles.poster}
-                    />
-                  ) : (
-                    <DefaultPoster size={100} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                  )}
-                </div>
-                <div style={styles.cardInfo}>
-                  <h3 style={styles.cardName}>{show.musical_name}</h3>
-                  <p style={styles.cardDate}>{formatDate(show.show_time)}</p>
-                </div>
-              </article>
-            ))}
+            {shows.map((show) => {
+              const color = getTypeColor(show.musical_type)
+              return (
+                <article
+                  key={show.id}
+                  style={{
+                    ...styles.card,
+                    backgroundColor: color.bg
+                  }}
+                  onClick={() => handleCardClick(show.id)}
+                >
+                  {/* Main Details */}
+                  <div style={styles.cardMain}>
+                    <h2 style={{ ...styles.cardName, color: color.text }}>{show.musical_name}</h2>
+                    <p style={{ ...styles.cardLocation, color: color.text }}>
+                      {(show.city || show.theater) ? `${show.city || ''} ${show.theater || ''}`.trim() : '未知剧场'}
+                    </p>
+                    <div style={styles.seatWrapper}>
+                      <span style={{ ...styles.seatTag, color: color.text }}>{show.seat || '未知座位'}</span>
+                    </div>
+                  </div>
+
+                  {/* Stub Separator with Notches */}
+                  <div style={styles.separator}>
+                    <div style={{ ...styles.separatorLine, borderColor: `${color.text}30` }}></div>
+                    <div style={{ ...styles.notch, left: -4 }}></div>
+                    <div style={{ ...styles.notch, right: -4 }}></div>
+                  </div>
+
+                  {/* Ticket Stub (Date) */}
+                  <div style={styles.cardStub}>
+                    {(() => {
+                      const parts = formatDateParts(show.show_time)
+                      return (
+                        <>
+                          <div style={{ ...styles.monthText, color: color.text }}>{parts.month}</div>
+                          <div style={styles.dayYearContainer}>
+                            <div style={{ ...styles.dayText, color: color.text }}>{parts.day}</div>
+                            <div style={{ ...styles.yearText, color: color.text }}>{parts.year}</div>
+                          </div>
+                          <div style={{ ...styles.timeText, color: color.text }}>{parts.time}</div>
+                        </>
+                      )
+                    })()}
+                  </div>
+                </article>
+              )
+            })}
           </div>
         )}
       </main>
@@ -231,7 +273,7 @@ export default function Shows() {
 const styles: Record<string, React.CSSProperties> = {
   container: {
     minHeight: '100vh',
-    backgroundColor: '#faf8f7',
+    backgroundColor: '#faf9f6',
     paddingBottom: '96px'
   },
   header: {
@@ -244,7 +286,7 @@ const styles: Record<string, React.CSSProperties> = {
     alignItems: 'center',
     padding: '0 20px',
     height: '64px',
-    backgroundColor: '#faf8f7'
+    backgroundColor: '#faf9f6'
   },
   iconBtn: {
     display: 'flex',
@@ -322,8 +364,9 @@ const styles: Record<string, React.CSSProperties> = {
     color: '#ffffff'
   },
   content: {
-    padding: '0 20px',
-    paddingTop: '70px'
+    padding: '96px 20px 32px',
+    maxWidth: '448px',
+    margin: '0 auto'
   },
   loading: {
     textAlign: 'center',
@@ -332,43 +375,114 @@ const styles: Record<string, React.CSSProperties> = {
   },
   grid: {
     display: 'grid',
-    gridTemplateColumns: 'repeat(4, 1fr)',
-    gap: '16px'
+    gridTemplateColumns: 'repeat(3, 1fr)',
+    gap: '12px'
   },
   card: {
-    backgroundColor: '#ffffff',
-    borderRadius: '5px',
-    overflow: 'hidden',
-    boxShadow: '0 8px 24px rgba(53, 102, 104, 0.06)',
-    cursor: 'pointer',
-    transition: 'transform 0.3s'
-  },
-  posterWrapper: {
-    aspectRatio: '3/4',
-    backgroundColor: '#e3e2e0',
-    overflow: 'hidden',
-    borderRadius: '5px'
-  },
-  poster: {
+    position: 'relative',
+    display: 'flex',
+    flexDirection: 'column',
     width: '100%',
-    height: '100%',
-    objectFit: 'cover'
+    borderRadius: '12px',
+    boxShadow: '0 4px 20px rgba(53, 102, 104, 0.05)',
+    cursor: 'pointer',
+    transition: 'transform 0.2s',
+    overflow: 'hidden'
   },
-  cardInfo: {
-    padding: '0 2px 5px'
+  cardMain: {
+    flex: 1,
+    padding: '12px 12px 6px',
+    display: 'flex',
+    flexDirection: 'column',
+    justifyContent: 'flex-start'
   },
   cardName: {
-    fontSize: '10px',
-    fontWeight: 400,
-    color: '#1a1c1a',
-    margin: '5px 0 0',
+    fontSize: '13px',
+    fontWeight: 600,
+    marginBottom: '4px',
     overflow: 'hidden',
     textOverflow: 'ellipsis',
     whiteSpace: 'nowrap'
   },
-  cardDate: {
+  cardLocation: {
+    fontSize: '10px',
+    opacity: 0.7,
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+    margin: 0
+  },
+  seatWrapper: {
+    marginTop: '6px',
+    display: 'flex',
+    gap: '4px'
+  },
+  seatTag: {
+    padding: '2px 6px',
+    backgroundColor: 'rgba(255, 255, 255, 0.4)',
+    borderRadius: '999px',
     fontSize: '8px',
-    color: '#707979',
-    margin: '4px 0 0'
+    fontWeight: 600,
+    whiteSpace: 'nowrap',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis'
+  },
+  separator: {
+    position: 'relative',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: '2px 0',
+    width: '100%'
+  },
+  separatorLine: {
+    width: 'calc(100% - 16px)',
+    borderTop: '1.5px dashed',
+    borderColor: 'rgba(0, 0, 0, 0.15)',
+    position: 'absolute'
+  },
+  notch: {
+    position: 'absolute',
+    width: '12px',
+    height: '12px',
+    backgroundColor: '#faf9f6',
+    borderRadius: '50%',
+    boxShadow: 'inset 2px 0 4px rgba(0, 0, 0, 0.02)'
+  },
+  cardStub: {
+    padding: '6px 10px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    flexShrink: 0
+  },
+  monthText: {
+    fontSize: '8px',
+    fontWeight: 700,
+    textTransform: 'uppercase',
+    letterSpacing: '0.1em',
+    opacity: 0.7
+  },
+  dayYearContainer: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    justifyContent: 'flex-start',
+    transform: 'translateY(-2px)'
+  },
+  dayText: {
+    fontSize: '20px',
+    fontWeight: 700,
+    lineHeight: 1
+  },
+  yearText: {
+    fontSize: '8px',
+    fontWeight: 600,
+    opacity: 0.7
+  },
+  timeText: {
+    fontSize: '8px',
+    fontWeight: 700,
+    opacity: 0.7
   }
 }

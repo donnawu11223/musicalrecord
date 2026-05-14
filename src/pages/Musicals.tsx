@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Empty } from 'antd-mobile'
 import { getMusicals } from '../services/musical'
-import DefaultPoster from '../components/DefaultPoster'
 import type { MusicalCard, MusicalType } from '../types'
 
 const TYPE_OPTIONS: { label: string; value: MusicalType | '' }[] = [
@@ -13,23 +12,16 @@ const TYPE_OPTIONS: { label: string; value: MusicalType | '' }[] = [
   { label: '舞剧', value: '舞剧' }
 ]
 
-const TYPE_TAG_STYLES: Record<MusicalType, React.CSSProperties> = {
-  '中国音乐剧': {
-    backgroundColor: 'rgba(168, 218, 220, 0.3)',
-    color: '#356668'
-  },
-  '非中音乐剧': {
-    backgroundColor: 'rgba(255, 182, 193, 0.4)',
-    color: '#874e58'
-  },
-  '话剧': {
-    backgroundColor: 'rgba(211, 203, 255, 0.2)',
-    color: '#5f559a'
-  },
-  '舞剧': {
-    backgroundColor: '#FFE4D6',
-    color: '#E67E22'
-  }
+// 剧目类型与颜色映射
+const typeColorMap: Record<MusicalType, { bg: string; text: string }> = {
+  '中国音乐剧': { bg: '#a8dadc', text: '#1a4e50' },
+  '非中音乐剧': { bg: '#ffb6c1', text: '#6b3741' },
+  '话剧': { bg: '#d3cbff', text: '#473d81' },
+  '舞剧': { bg: '#b9ecee', text: '#002021' },
+}
+
+const getTypeColor = (type: MusicalType) => {
+  return typeColorMap[type] || { bg: '#a8dadc', text: '#1a4e50' }
 }
 
 export default function Musicals() {
@@ -137,51 +129,45 @@ export default function Musicals() {
           <Empty description="暂无剧目记录" />
         ) : (
           <div style={styles.grid}>
-            {musicals.map(musical => (
-              <article
-                key={musical.id}
-                style={styles.card}
-                onClick={() => handleCardClick(musical.id)}
-              >
-                <div style={styles.posterWrapper}>
-                  {musical.poster ? (
-                    <img
-                      src={musical.poster}
-                      alt={musical.name}
-                      style={styles.poster}
-                    />
-                  ) : (
-                    <DefaultPoster size={90} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                  )}
-                </div>
-                <div style={styles.cardContent}>
-                  <div>
-                    <div style={styles.cardHeader}>
-                      <h3 style={styles.cardName}>{musical.name}</h3>
-                      <span style={{
-                        ...styles.typeTag,
-                        ...TYPE_TAG_STYLES[musical.type]
-                      }}>
-                        {musical.type}
-                      </span>
-                    </div>
-                    {musical.brand && (
-                      <p style={styles.cardBrand}>{musical.brand}</p>
-                    )}
+            {musicals.map(musical => {
+              const color = getTypeColor(musical.type)
+              return (
+                <article
+                  key={musical.id}
+                  style={{
+                    ...styles.card,
+                    backgroundColor: color.bg
+                  }}
+                  onClick={() => handleCardClick(musical.id)}
+                >
+                  {/* 左侧内容区 */}
+                  <div style={styles.cardMain}>
+                    <h2 style={{ ...styles.cardName, color: color.text }}>{musical.name}</h2>
+                    <p style={{ ...styles.cardBrand, color: color.text }}>{musical.brand || '未知出品方'}</p>
+                    <span style={{ ...styles.typeTag, color: color.text }}>{musical.type}</span>
                   </div>
-                  <div style={styles.cardStats}>
+
+                  {/* 分隔线与半圆缺口 */}
+                  <div style={styles.separator}>
+                    <div style={{ ...styles.separatorLine, borderColor: `${color.text}30` }}></div>
+                    <div style={{ ...styles.notch, top: -6 }}></div>
+                    <div style={{ ...styles.notch, bottom: -6 }}></div>
+                  </div>
+
+                  {/* 右侧统计区 */}
+                  <div style={styles.cardStub}>
                     <div style={styles.statItem}>
-                      <span className="material-symbols-outlined" style={styles.statIcon}>visibility</span>
-                      <span style={styles.statText}>{musical.watch_count ?? 0}</span>
+                      <span className="material-symbols-outlined" style={{ ...styles.statIcon, color: color.text }}>visibility</span>
+                      <span style={{ ...styles.statValue, color: color.text }}>{musical.watch_count ?? 0}</span>
                     </div>
                     <div style={styles.statItem}>
-                      <span className="material-symbols-outlined fill" style={{...styles.statIcon, color: '#356668'}}>star</span>
-                      <span style={{...styles.statText, color: '#356668', fontWeight: 600}}>{(musical.avg_score || 0).toFixed(1)}</span>
+                      <span className="material-symbols-outlined" style={{ ...styles.statIcon, color: color.text }}>star</span>
+                      <span style={{ ...styles.statValue, color: color.text }}>{(musical.avg_score || 0).toFixed(1)}</span>
                     </div>
                   </div>
-                </div>
-              </article>
-            ))}
+                </article>
+              )
+            })}
           </div>
         )}
       </main>
@@ -192,7 +178,7 @@ export default function Musicals() {
 const styles: Record<string, React.CSSProperties> = {
   container: {
     minHeight: '100vh',
-    backgroundColor: '#faf8f7',
+    backgroundColor: '#faf9f6',
     paddingBottom: '96px'
   },
   header: {
@@ -205,7 +191,7 @@ const styles: Record<string, React.CSSProperties> = {
     alignItems: 'center',
     padding: '0 20px',
     height: '64px',
-    backgroundColor: '#faf8f7'
+    backgroundColor: '#faf9f6'
   },
   iconBtn: {
     display: 'flex',
@@ -285,8 +271,9 @@ const styles: Record<string, React.CSSProperties> = {
     color: '#ffffff'
   },
   content: {
-    padding: '0 20px',
-    paddingTop: '70px'
+    padding: '96px 20px 32px',
+    maxWidth: '448px',
+    margin: '0 auto'
   },
   loading: {
     textAlign: 'center',
@@ -294,84 +281,95 @@ const styles: Record<string, React.CSSProperties> = {
     color: '#707979'
   },
   grid: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '16px'
+    display: 'grid',
+    gridTemplateColumns: 'repeat(2, 1fr)',
+    gap: '12px'
   },
   card: {
+    position: 'relative',
     display: 'flex',
-    backgroundColor: '#ffffff',
-    borderRadius: '15px',
-    height: '120px',
-    overflow: 'hidden',
-    boxShadow: '0 8px 24px rgba(53, 102, 104, 0.06)',
-    cursor: 'pointer',
-    transition: 'transform 0.3s'
-  },
-  posterWrapper: {
-    width: '90px',
-    height: '120px',
-    flexShrink: 0,
-    overflow: 'hidden',
-    backgroundColor: '#e3e2e0'
-  },
-  poster: {
+    flexDirection: 'row',
     width: '100%',
-    height: '100%',
-    objectFit: 'cover'
+    borderRadius: '12px',
+    boxShadow: '0 4px 20px rgba(53, 102, 104, 0.05)',
+    cursor: 'pointer',
+    transition: 'transform 0.2s',
+    overflow: 'hidden'
   },
-  cardContent: {
-    flex: 1,
-    padding: '12px 16px',
+  cardMain: {
+    width: '70%',
+    padding: '12px 12px',
     display: 'flex',
     flexDirection: 'column',
-    justifyContent: 'space-between',
-    backgroundColor: '#ffffff'
-  },
-  cardHeader: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    gap: '8px'
+    justifyContent: 'flex-start',
+    gap: '6px'
   },
   cardName: {
-    fontSize: '16px',
+    fontSize: '13px',
     fontWeight: 600,
-    color: '#1a1c1a',
+    marginBottom: '0',
     overflow: 'hidden',
     textOverflow: 'ellipsis',
-    whiteSpace: 'nowrap',
-    flex: 1
-  },
-  typeTag: {
-    flexShrink: 0,
-    fontSize: '10px',
-    padding: '2px 8px',
-    borderRadius: '3px',
-    fontWeight: 500
+    whiteSpace: 'nowrap'
   },
   cardBrand: {
-    marginTop: '4px',
-    fontSize: '12px',
-    color: '#404848'
+    fontSize: '10px',
+    opacity: 0.7,
+    margin: 0
   },
-  cardStats: {
+  typeTag: {
+    display: 'inline-block',
+    width: 'fit-content',
+    padding: '2px 6px',
+    backgroundColor: 'rgba(255, 255, 255, 0.4)',
+    borderRadius: '999px',
+    fontSize: '8px',
+    fontWeight: 600
+  },
+  separator: {
+    position: 'absolute',
+    right: '30%',
+    top: 0,
+    bottom: 0,
+    width: '1px',
     display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  separatorLine: {
+    width: '1px',
+    height: '100%',
+    borderLeft: '1.5px dashed',
+    borderColor: 'rgba(0, 0, 0, 0.15)'
+  },
+  notch: {
+    position: 'absolute',
+    width: '12px',
+    height: '12px',
+    backgroundColor: '#faf9f6',
+    borderRadius: '50%',
+    right: -6,
+    boxShadow: 'inset 2px 0 4px rgba(0, 0, 0, 0.02)'
+  },
+  cardStub: {
+    width: '30%',
+    padding: '12px 10px',
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'flex-start',
     justifyContent: 'space-between',
-    alignItems: 'center'
+    flexShrink: 0
   },
   statItem: {
     display: 'flex',
     alignItems: 'center',
-    gap: '4px'
+    gap: '2px'
   },
   statIcon: {
-    fontSize: '14px',
-    color: '#404848'
+    fontSize: '12px'
   },
-  statText: {
+  statValue: {
     fontSize: '12px',
-    fontWeight: 500,
-    color: '#404848'
+    fontWeight: 600
   }
 }

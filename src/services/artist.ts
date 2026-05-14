@@ -94,10 +94,6 @@ export async function getArtistById(id: string): Promise<ArtistDetail> {
       }, 0) / watchCount) * 2 * 10) / 10
     : 0
 
-  const totalTicketPrice = shows.reduce((sum: number, s: any) => sum + (s.ticket_price || 0), 0)
-  const totalPaidAmount = shows.reduce((sum: number, s: any) => sum + (s.paid_amount || 0), 0)
-  const totalOtherExpense = shows.reduce((sum: number, s: any) => sum + (s.other_expense || 0), 0)
-
   // 统计剧目参与次数
   const musicalStats = new Map<string, { musical_id: string; musical_name: string; count: number }>()
   actorReviews?.forEach((review: any) => {
@@ -132,9 +128,6 @@ export async function getArtistById(id: string): Promise<ArtistDetail> {
     ...artist,
     watch_count: watchCount,
     avg_score: avgScore,
-    total_ticket_price: totalTicketPrice,
-    total_paid_amount: totalPaidAmount,
-    total_other_expense: totalOtherExpense,
     musical_stats: Array.from(musicalStats.values()).sort((a, b) => b.count - a.count),
     shows: showReviews
   }
@@ -186,45 +179,6 @@ export async function deleteArtist(id: string) {
     .eq('id', id)
 
   if (error) throw error
-}
-
-// 上传头像图片
-export async function uploadAvatar(file: File): Promise<string> {
-  const fileExt = file.name.split('.').pop()
-  const fileName = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}.${fileExt}`
-  const filePath = `avatars/${fileName}`
-
-  const { error: uploadError } = await supabase.storage
-    .from('avatars')
-    .upload(filePath, file)
-
-  if (uploadError) throw uploadError
-
-  const { data: { publicUrl } } = supabase.storage
-    .from('avatars')
-    .getPublicUrl(filePath)
-
-  return publicUrl
-}
-
-// 删除头像图片
-export async function deleteAvatar(url: string): Promise<void> {
-  if (!url) return
-
-  // 从URL中提取文件路径
-  const urlObj = new URL(url)
-  const pathMatch = urlObj.pathname.match(/\/storage\/v1\/object\/public\/avatars\/(.+)$/)
-  if (!pathMatch) return
-
-  const filePath = pathMatch[1]
-
-  const { error } = await supabase.storage
-    .from('avatars')
-    .remove([filePath])
-
-  if (error) {
-    console.error('删除图片失败:', error)
-  }
 }
 
 // 获取所有演员名称（用于下拉选择）

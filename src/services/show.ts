@@ -7,7 +7,7 @@ export async function getShows(filters?: { year?: string; type?: MusicalType }):
     .from('show')
     .select(`
       *,
-      musical:musical(id, name, poster, type)
+      musical:musical(id, name, type)
     `)
     .order('show_time', { ascending: false })
 
@@ -40,7 +40,6 @@ export async function getShows(filters?: { year?: string; type?: MusicalType }):
   return (data || []).map(show => ({
     ...show,
     musical_name: (show.musical as any)?.name || '',
-    musical_poster: (show.musical as any)?.poster || '',
     musical_type: (show.musical as any)?.type || ''
   }))
 }

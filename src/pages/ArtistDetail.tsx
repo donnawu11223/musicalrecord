@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { Dialog } from 'antd-mobile'
 import { getArtistById, deleteArtist } from '../services/artist'
-import DefaultAvatar from '../components/DefaultAvatar'
 import type { ArtistDetail } from '../types'
 
 export default function ArtistDetailPage() {
@@ -101,11 +100,6 @@ export default function ArtistDetailPage() {
       <main style={styles.content}>
         {/* 演员信息卡片 */}
         <section style={styles.infoCard}>
-          {artist.avatar ? (
-            <img src={artist.avatar} alt={artist.name} style={styles.avatar} />
-          ) : (
-            <DefaultAvatar size={400} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-          )}
           <div style={styles.infoContent}>
             <h2 style={styles.artistName}>{artist.name}</h2>
             <div style={styles.infoList}>
@@ -116,18 +110,6 @@ export default function ArtistDetailPage() {
               <div style={styles.infoRow}>
                 <span className="material-symbols-outlined" style={styles.infoIcon}>confirmation_number</span>
                 <span style={styles.infoText}>{artist.watch_count} 场</span>
-              </div>
-              <div style={styles.infoRow}>
-                <span className="material-symbols-outlined" style={styles.infoIcon}>sell</span>
-                <span style={styles.infoText}>￥{artist.total_ticket_price.toLocaleString()}</span>
-              </div>
-              <div style={styles.infoRow}>
-                <span className="material-symbols-outlined" style={styles.infoIcon}>payments</span>
-                <span style={styles.infoText}>￥{artist.total_paid_amount.toLocaleString()}</span>
-              </div>
-              <div style={styles.infoRow}>
-                <span className="material-symbols-outlined" style={styles.infoIcon}>menu_book</span>
-                <span style={styles.infoText}>￥{artist.total_other_expense.toLocaleString()}</span>
               </div>
             </div>
           </div>
@@ -303,12 +285,6 @@ const styles: Record<string, React.CSSProperties> = {
     overflow: 'hidden',
     border: '1px solid rgba(192, 200, 200, 0.3)'
   },
-  avatar: {
-    width: '100%',
-    aspectRatio: '3/4',
-    objectFit: 'cover',
-    borderRadius: '15px'
-  },
   infoContent: {
     width: '100%',
     padding: '16px',
@@ -317,9 +293,12 @@ const styles: Record<string, React.CSSProperties> = {
     alignItems: 'center'
   },
   artistName: {
-    fontSize: '20px',
-    fontWeight: 700,
-    color: '#356668',
+    backgroundColor: '#a8dadc',
+    color: '#306163',
+    fontSize: '16px',
+    fontWeight: 600,
+    padding: '8px 16px',
+    borderRadius: '8px',
     marginBottom: '16px'
   },
   infoList: {

@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { Dialog } from 'antd-mobile'
 import { getMusicalById, deleteMusical } from '../services/musical'
-import DefaultPoster from '../components/DefaultPoster'
 import type { MusicalDetail, MusicalType } from '../types'
 
 const TYPE_TAG_STYLES: Record<MusicalType, React.CSSProperties> = {
@@ -120,11 +119,6 @@ export default function MusicalDetailPage() {
       <main style={styles.content}>
         {/* 剧目信息卡片 */}
         <section style={styles.infoCard}>
-          {musical.poster ? (
-            <img src={musical.poster} alt={musical.name} style={styles.poster} />
-          ) : (
-            <DefaultPoster size={400} style={{ width: '100%', aspectRatio: '3/4', objectFit: 'cover' }} />
-          )}
           <div style={styles.infoContent}>
             <button style={styles.nameButton}>{musical.name}</button>
             <div style={styles.infoList}>
@@ -148,21 +142,22 @@ export default function MusicalDetailPage() {
                 <span className="material-symbols-outlined" style={styles.infoIcon}>confirmation_number</span>
                 <span style={styles.infoText}>{musical.watch_count} 场</span>
               </div>
-              <div style={styles.infoRow}>
-                <span className="material-symbols-outlined" style={styles.infoIcon}>sell</span>
-                <span style={styles.infoText}>￥{musical.total_ticket_price.toLocaleString()}</span>
-              </div>
-              <div style={styles.infoRow}>
-                <span className="material-symbols-outlined" style={styles.infoIcon}>payments</span>
-                <span style={styles.infoText}>￥{musical.total_paid_amount.toLocaleString()}</span>
-              </div>
-              <div style={styles.infoRow}>
-                <span className="material-symbols-outlined" style={styles.infoIcon}>menu_book</span>
-                <span style={styles.infoText}>￥{musical.total_other_expense.toLocaleString()}</span>
-              </div>
             </div>
           </div>
         </section>
+
+        {/* 剧情介绍 */}
+        {musical.plot && (
+          <section style={styles.section}>
+            <h2 style={styles.sectionTitle}>
+              <span className="material-symbols-outlined" style={styles.sectionIcon}>description</span>
+              剧情介绍
+            </h2>
+            <div style={styles.plotCard}>
+              <p style={styles.plotText}>{musical.plot}</p>
+            </div>
+          </section>
+        )}
 
         {/* 演员统计 */}
         {musical.artist_stats.length > 0 && (
@@ -181,19 +176,6 @@ export default function MusicalDetailPage() {
                   {artist.artist_name} {artist.count} 场
                 </span>
               ))}
-            </div>
-          </section>
-        )}
-
-        {/* 剧情介绍 */}
-        {musical.plot && (
-          <section style={styles.section}>
-            <h2 style={styles.sectionTitle}>
-              <span className="material-symbols-outlined" style={styles.sectionIcon}>description</span>
-              剧情介绍
-            </h2>
-            <div style={styles.plotCard}>
-              <p style={styles.plotText}>{musical.plot}</p>
             </div>
           </section>
         )}
@@ -334,11 +316,6 @@ const styles: Record<string, React.CSSProperties> = {
     boxShadow: '0 8px 24px rgba(53, 102, 104, 0.06)',
     overflow: 'hidden',
     border: '1px solid rgba(192, 200, 200, 0.3)'
-  },
-  poster: {
-    width: '100%',
-    aspectRatio: '3/4',
-    objectFit: 'cover'
   },
   infoContent: {
     width: '100%',
