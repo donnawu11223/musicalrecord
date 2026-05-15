@@ -49,14 +49,10 @@ export default function ShowDetailPage() {
       cache.set(`musical_show_${showId}`, data)
     } catch (error) {
       console.error('加载场次详情失败:', error)
-      if (!show) {
-        const cached = cache.get<ShowDetail>(`musical_show_${showId}`, true)
-        if (cached) setShow(cached)
-      }
     } finally {
       setLoading(false)
     }
-  }, [show])
+  }, [])
 
   useEffect(() => {
     if (id) loadShow(id)
@@ -328,7 +324,7 @@ const styles: Record<string, React.CSSProperties> = {
     position: 'fixed',
     top: 0,
     width: '100%',
-    zIndex: 40,
+    zIndex: 200,
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'space-between',

@@ -23,14 +23,10 @@ export default function ArtistDetailPage() {
       cache.set(`musical_artist_${artistId}`, data)
     } catch (error) {
       console.error('加载演员详情失败:', error)
-      if (!artist) {
-        const cached = cache.get<ArtistDetail>(`musical_artist_${artistId}`, true)
-        if (cached) setArtist(cached)
-      }
     } finally {
       setLoading(false)
     }
-  }, [artist])
+  }, [])
 
   useEffect(() => {
     if (id) loadArtist(id)
@@ -228,7 +224,7 @@ const styles: Record<string, React.CSSProperties> = {
     position: 'fixed',
     top: 0,
     width: '100%',
-    zIndex: 40,
+    zIndex: 200,
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'space-between',

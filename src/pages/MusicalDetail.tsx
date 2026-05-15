@@ -41,14 +41,10 @@ export default function MusicalDetailPage() {
       cache.set(`musical_detail_${musicalId}`, data)
     } catch (error) {
       console.error('加载剧目详情失败:', error)
-      if (!musical) {
-        const cached = cache.get<MusicalDetail>(`musical_detail_${musicalId}`, true)
-        if (cached) setMusical(cached)
-      }
     } finally {
       setLoading(false)
     }
-  }, [musical])
+  }, [])
 
   useEffect(() => {
     if (id) loadMusical(id)
@@ -259,7 +255,7 @@ const styles: Record<string, React.CSSProperties> = {
     position: 'fixed',
     top: 0,
     width: '100%',
-    zIndex: 40,
+    zIndex: 200,
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'space-between',
