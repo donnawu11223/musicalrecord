@@ -1,33 +1,39 @@
-import { useState, useEffect } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
-import { Dialog } from 'antd-mobile'
+import { useState, useEffect, useCallback } from 'react'
+import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import { getArtistById, deleteArtist } from '../services/artist'
+import { cache } from '../hooks/useCache'
+import { showToast } from '../components/Toast'
+import ConfirmDialog from '../components/ConfirmDialog'
+import { calcShowAvg } from '../lib/score'
 import type { ArtistDetail } from '../types'
 
 export default function ArtistDetailPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
+  const location = useLocation()
   const [artist, setArtist] = useState<ArtistDetail | null>(null)
   const [loading, setLoading] = useState(true)
   const [showMenu, setShowMenu] = useState(false)
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
 
-  useEffect(() => {
-    if (id) {
-      loadArtist(id)
-    }
-  }, [id])
-
-  const loadArtist = async (artistId: string) => {
+  const loadArtist = useCallback(async (artistId: string) => {
+    setLoading(true)
     try {
-      setLoading(true)
       const data = await getArtistById(artistId)
       setArtist(data)
+      cache.set(`musical_artist_${artistId}`, data)
     } catch (error) {
       console.error('加载演员详情失败:', error)
+      const cached = cache.get<ArtistDetail>(`musical_artist_${artistId}`, true)
+      if (cached) setArtist(cached)
     } finally {
       setLoading(false)
     }
-  }
+  }, [])
+
+  useEffect(() => {
+    if (id) loadArtist(id)
+  }, [id, loadArtist, location.key])
 
   const handleBack = () => {
     navigate(-1)
@@ -38,20 +44,24 @@ export default function ArtistDetailPage() {
     navigate(`/artists/${id}/edit`)
   }
 
-  const handleDelete = async () => {
+  const handleDelete = () => {
     setShowMenu(false)
-    const confirmed = await Dialog.confirm({
-      content: '确定要删除这个演员吗？删除后将无法找回。',
-      confirmText: '确定',
-      cancelText: '取消'
-    })
-    if (confirmed) {
-      try {
-        await deleteArtist(id!)
-        navigate('/artists')
-      } catch (error: any) {
-        Dialog.alert({ content: error.message || '删除失败' })
-      }
+    setShowDeleteConfirm(true)
+  }
+
+  const handleDeleteConfirm = async () => {
+    setShowDeleteConfirm(false)
+    try {
+      await deleteArtist(id!)
+      cache.remove(`musical_artist_${id}`)
+      Object.keys(localStorage).forEach(key => {
+        if (key.startsWith('musical_artists_cache')) cache.remove(key)
+        if (key.startsWith('musical_shows_cache')) cache.remove(key)
+        if (key.startsWith('musical_musicals_cache')) cache.remove(key)
+      })
+      navigate('/artists')
+    } catch (error: any) {
+      showToast({ content: error.message || '删除失败', icon: 'fail' })
     }
   }
 
@@ -73,6 +83,7 @@ export default function ArtistDetailPage() {
 
   return (
     <div style={styles.container}>
+      {showMenu && <div style={styles.menuOverlay} onClick={() => setShowMenu(false)} />}
       {/* 顶部导航栏 */}
       <header style={styles.header}>
         <button style={styles.iconBtn} onClick={handleBack}>
@@ -151,42 +162,49 @@ export default function ArtistDetailPage() {
                   onClick={() => navigate(`/shows/${show.show_id}`)}
                 >
                   <div style={styles.showHeader}>
-                    <div style={styles.showHeaderTop}>
-                      <button style={styles.musicalNameBtn}>{show.musical_name}</button>
-                      <span style={{
-                        ...styles.actorTypeTag,
-                        ...(show.actor_type === '主演' ? styles.actorTypeMain : styles.actorTypeEnsemble)
-                      }}>
-                        {show.actor_type}
+                    <div style={styles.showTitle}>
+                      <span style={styles.musicalName}>{show.musical_name}</span>
+                      {show.role && <span style={styles.roleText}>饰 {show.role}</span>}
+                    </div>
+                    <span style={{
+                      ...styles.actorTypeTag,
+                      ...(show.actor_type === '主演' ? styles.actorTypeMain : styles.actorTypeEnsemble)
+                    }}>
+                      {show.actor_type}
+                    </span>
+                  </div>
+                  <div style={styles.showFooter}>
+                    <div style={styles.showDate}>
+                      {new Date(show.show_time).toLocaleDateString('zh-CN', {
+                        year: 'numeric',
+                        month: '2-digit',
+                        day: '2-digit',
+                        hour: '2-digit',
+                        minute: '2-digit'
+                      })}
+                    </div>
+                    <div style={styles.showScore}>
+                      <span className="material-symbols-outlined fill" style={styles.scoreIcon}>star</span>
+                      <span style={styles.scoreText}>
+                        {(Math.round(calcShowAvg(show) * 2 * 10) / 10).toFixed(1)}
                       </span>
                     </div>
-                    <div style={styles.showInfo}>
-                      <div style={styles.showDateTime}>
-                        <span className="material-symbols-outlined" style={styles.calendarIcon}>calendar_today</span>
-                        <span>{new Date(show.show_time).toLocaleDateString('zh-CN', {
-                          year: 'numeric',
-                          month: '2-digit',
-                          day: '2-digit',
-                          hour: '2-digit',
-                          minute: '2-digit'
-                        })}</span>
-                      </div>
-                      <div style={styles.scoreWrapper}>
-                        <span className="material-symbols-outlined fill" style={styles.scoreIcon}>star</span>
-                        <span style={styles.scoreText}>
-                          {((show.plot_score + show.visual_score + show.acting_score + show.script_score + show.singing_score) / 5).toFixed(1)}
-                        </span>
-                      </div>
-                    </div>
-                    {show.role && <div style={styles.roleText}>饰 {show.role}</div>}
                   </div>
-                  {show.review && <p style={styles.reviewText}>{show.review}</p>}
+                  {show.review && <div style={styles.showDivider} />}
+                  {show.review && <p style={styles.showNote}>{show.review}</p>}
                 </div>
               ))}
             </div>
           </section>
         )}
       </main>
+
+      <ConfirmDialog
+        visible={showDeleteConfirm}
+        content="确定要删除这个演员吗？删除后将无法找回。"
+        onConfirm={handleDeleteConfirm}
+        onCancel={() => setShowDeleteConfirm(false)}
+      />
     </div>
   )
 }
@@ -196,6 +214,14 @@ const styles: Record<string, React.CSSProperties> = {
     minHeight: '100vh',
     backgroundColor: '#faf8f7',
     paddingBottom: '96px'
+  },
+  menuOverlay: {
+    position: 'fixed',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 199
   },
   header: {
     position: 'fixed',
@@ -362,38 +388,43 @@ const styles: Record<string, React.CSSProperties> = {
   showCard: {
     backgroundColor: '#ffffff',
     padding: '16px',
-    borderRadius: '15px',
+    borderRadius: '12px',
     boxShadow: '0 8px 24px rgba(53, 102, 104, 0.04)',
     border: '1px solid rgba(192, 200, 200, 0.3)',
     cursor: 'pointer',
-    transition: 'transform 0.2s'
+    transition: 'opacity 0.2s'
   },
   showHeader: {
     display: 'flex',
-    flexDirection: 'column',
-    gap: '8px',
-    paddingBottom: '12px',
-    borderBottom: '1px solid rgba(192, 200, 200, 0.3)'
-  },
-  showHeaderTop: {
-    display: 'flex',
     justifyContent: 'space-between',
-    alignItems: 'center'
+    alignItems: 'flex-start',
+    gap: '8px'
   },
-  musicalNameBtn: {
-    backgroundColor: '#b8e2d6',
-    color: '#3f665c',
-    fontSize: '16px',
+  showTitle: {
+    display: 'flex',
+    alignItems: 'baseline',
+    gap: '6px',
+    flex: 1,
+    minWidth: 0
+  },
+  musicalName: {
+    fontSize: '14px',
     fontWeight: 600,
-    padding: '4px 12px',
-    borderRadius: '5px',
-    border: 'none',
-    cursor: 'default'
+    color: '#1a1c1a',
+    whiteSpace: 'nowrap',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis'
+  },
+  roleText: {
+    fontSize: '12px',
+    color: '#707979',
+    whiteSpace: 'nowrap',
+    flexShrink: 0
   },
   actorTypeTag: {
-    padding: '2px 8px',
+    padding: '1px 6px',
     borderRadius: '3px',
-    fontSize: '12px',
+    fontSize: '10px',
     fontWeight: 600
   },
   actorTypeMain: {
@@ -404,47 +435,39 @@ const styles: Record<string, React.CSSProperties> = {
     backgroundColor: 'rgba(211, 203, 255, 0.2)',
     color: '#5f559a'
   },
-  showInfo: {
+  showFooter: {
     display: 'flex',
     justifyContent: 'space-between',
-    alignItems: 'center'
+    alignItems: 'center',
+    paddingTop: '8px'
   },
-  showDateTime: {
+  showDate: {
+    fontSize: '14px',
+    fontWeight: 600,
+    color: '#1a1c1a'
+  },
+  showScore: {
     display: 'flex',
     alignItems: 'center',
-    gap: '4px',
-    fontSize: '12px',
-    color: '#707979'
-  },
-  calendarIcon: {
-    fontSize: '16px'
-  },
-  scoreWrapper: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '2px',
-    backgroundColor: '#e9e8e5',
-    padding: '2px 8px',
-    borderRadius: '5px'
+    gap: '2px'
   },
   scoreIcon: {
-    fontSize: '14px',
+    fontSize: '18px',
     color: '#356668'
   },
   scoreText: {
     fontSize: '14px',
-    fontWeight: 700,
-    color: '#1a1c1a'
+    fontWeight: 600,
+    color: '#356668'
   },
-  roleText: {
-    fontSize: '14px',
-    fontWeight: 500,
-    color: '#1a1c1a'
+  showDivider: {
+    borderTop: '1px solid rgba(192, 200, 200, 0.3)',
+    margin: '8px 0'
   },
-  reviewText: {
-    marginTop: '12px',
+  showNote: {
+    marginTop: '8px',
     fontSize: '14px',
     color: '#404848',
-    lineHeight: 1.6
+    lineHeight: 1.5
   }
 }

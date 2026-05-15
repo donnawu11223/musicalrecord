@@ -4,7 +4,15 @@ import { showToast } from '../components/Toast'
 import { getShowById, createShow, updateShow, saveActorReviews } from '../services/show'
 import { getMusicalNames } from '../services/musical'
 import { getArtistNames } from '../services/artist'
-import type { ActorType } from '../types'
+import { cache } from '../hooks/useCache'
+import type { ActorType, MusicalType } from '../types'
+
+const SCORE_LABELS: Record<MusicalType, string> = {
+  '中国音乐剧': '演唱',
+  '非中音乐剧': '演唱',
+  '话剧': '感受',
+  '舞剧': '舞蹈'
+}
 
 interface ActorReviewInput {
   id?: string
@@ -39,9 +47,11 @@ export default function ShowEditPage() {
   const [actorReviews, setActorReviews] = useState<ActorReviewInput[]>([
     { artist_id: '', artist_name: '', actor_type: '主演', role: '', review: '' }
   ])
-  const [musicalOptions, setMusicalOptions] = useState<{ id: string; name: string }[]>([])
+  const [musicalOptions, setMusicalOptions] = useState<{ id: string; name: string; type: MusicalType }[]>([])
   const [artistOptions, setArtistOptions] = useState<{ id: string; name: string }[]>([])
   const [musicalSearch, setMusicalSearch] = useState('')
+  const [selectedMusicalType, setSelectedMusicalType] = useState<MusicalType | ''>('')
+  const [submitting, setSubmitting] = useState(false)
   const [showMusicalDropdown, setShowMusicalDropdown] = useState(false)
   const [artistSearchIndex, setArtistSearchIndex] = useState<number | null>(null)
   const [artistSearch, setArtistSearch] = useState('')
@@ -109,16 +119,17 @@ export default function ShowEditPage() {
         musical_id: data.musical_id,
         musical_name: data.musical.name,
         show_time: showTimeLocal,
-        city: data.city,
-        theater: data.theater,
-        seat: data.seat,
-        plot_score: data.plot_score,
-        visual_score: data.visual_score,
-        acting_score: data.acting_score,
-        script_score: data.script_score,
-        singing_score: data.singing_score,
-        note: data.note
+        city: data.city ?? '',
+        theater: data.theater ?? '',
+        seat: data.seat ?? '',
+        plot_score: data.plot_score ?? 0,
+        visual_score: data.visual_score ?? 0,
+        acting_score: data.acting_score ?? 0,
+        script_score: data.script_score ?? 0,
+        singing_score: data.singing_score ?? 0,
+        note: data.note ?? ''
       })
+      setSelectedMusicalType(data.musical.type)
       if (data.actor_reviews.length > 0) {
         setActorReviews(data.actor_reviews.map(r => ({
           id: r.id,
@@ -139,8 +150,9 @@ export default function ShowEditPage() {
     navigate(-1)
   }
 
-  const handleMusicalSelect = (musical: { id: string; name: string }) => {
+  const handleMusicalSelect = (musical: { id: string; name: string; type: MusicalType }) => {
     setFormData({ ...formData, musical_id: musical.id, musical_name: musical.name })
+    setSelectedMusicalType(musical.type)
     setMusicalSearch('')
     setShowMusicalDropdown(false)
   }
@@ -274,7 +286,7 @@ export default function ShowEditPage() {
   }
 
   const handleConfirmDateTime = () => {
-    // 根据当前选择的日期和时间更新formData
+    // 使用 formData.show_time 中的日期，只更新小时和分钟
     const currentDate = formData.show_time ? new Date(formData.show_time) : new Date()
     const year = currentDate.getFullYear()
     const month = currentDate.getMonth()
@@ -290,11 +302,19 @@ export default function ShowEditPage() {
   const handleHourSelect = (hour: number) => {
     setSelectedHour(hour)
     setShowHourDropdown(false)
+    // 立即更新 formData
+    const currentDate = formData.show_time ? new Date(formData.show_time) : new Date()
+    const newDate = new Date(currentDate.getFullYear(), currentDate.getMonth(), currentDate.getDate(), hour, selectedMinute)
+    setFormData({ ...formData, show_time: formatLocalDateTime(newDate) })
   }
 
   const handleMinuteSelect = (minute: number) => {
     setSelectedMinute(minute)
     setShowMinuteDropdown(false)
+    // 立即更新 formData
+    const currentDate = formData.show_time ? new Date(formData.show_time) : new Date()
+    const newDate = new Date(currentDate.getFullYear(), currentDate.getMonth(), currentDate.getDate(), selectedHour, minute)
+    setFormData({ ...formData, show_time: formatLocalDateTime(newDate) })
   }
 
   const getDaysInMonth = () => {
@@ -441,12 +461,14 @@ export default function ShowEditPage() {
   }
 
   const handleSubmit = async () => {
+    if (submitting) return
     // 校验剧目不为空
     if (!formData.musical_id) {
       showToast({ content: '请选择剧目', icon: 'fail' })
       return
     }
 
+    setSubmitting(true)
     try {
       // 将本地时间转换为ISO格式，添加北京时间时区偏移
       const localTime = formData.show_time
@@ -455,15 +477,15 @@ export default function ShowEditPage() {
       const showData = {
         musical_id: formData.musical_id,
         show_time: showTimeWithTimezone,
-        city: formData.city.trim(),
-        theater: formData.theater.trim(),
-        seat: formData.seat.trim(),
-        plot_score: formData.plot_score,
-        visual_score: formData.visual_score,
-        acting_score: formData.acting_score,
-        script_score: formData.script_score,
-        singing_score: formData.singing_score,
-        note: formData.note.trim()
+        city: formData.city?.trim() || undefined,
+        theater: formData.theater?.trim() || undefined,
+        seat: formData.seat?.trim() || undefined,
+        plot_score: formData.plot_score || undefined,
+        visual_score: formData.visual_score || undefined,
+        acting_score: formData.acting_score || undefined,
+        script_score: formData.script_score || undefined,
+        singing_score: formData.singing_score || undefined,
+        note: formData.note?.trim() || undefined
       }
 
       let showId: string
@@ -486,10 +508,23 @@ export default function ShowEditPage() {
         review: r.review
       })))
 
+      // 清除缓存
+      cache.remove(`musical_show_${showId}`)
+      Object.keys(localStorage).forEach(key => {
+        if (key.startsWith('musical_shows_cache')) cache.remove(key)
+        if (key.startsWith('musical_musicals_cache')) cache.remove(key)
+        if (key.startsWith('musical_detail_')) cache.remove(key)
+        if (key.startsWith('musical_artist_')) cache.remove(key)
+        if (key.startsWith('musical_artists_cache')) cache.remove(key)
+        if (key.startsWith('musical_years_cache')) cache.remove(key)
+      })
+
       navigate(-1)
     } catch (error) {
       console.error('保存失败:', error)
       showToast({ content: '保存失败', icon: 'fail' })
+    } finally {
+      setSubmitting(false)
     }
   }
 
@@ -529,7 +564,7 @@ export default function ShowEditPage() {
           <span className="material-symbols-outlined">arrow_back</span>
         </button>
         <h1 style={styles.title}>{isEdit ? '编辑场次' : '新增场次'}</h1>
-        <button style={styles.iconBtn} onClick={handleSubmit}>
+        <button style={{ ...styles.iconBtn, opacity: submitting ? 0.5 : 1 }} onClick={handleSubmit} disabled={submitting}>
           <span className="material-symbols-outlined">check</span>
         </button>
       </header>
@@ -617,7 +652,7 @@ export default function ShowEditPage() {
               {renderStars('script_score', formData.script_score)}
             </div>
             <div style={styles.scoreRow}>
-              <span style={styles.scoreLabel}>演唱</span>
+              <span style={styles.scoreLabel}>{selectedMusicalType ? SCORE_LABELS[selectedMusicalType] : '演唱'}</span>
               {renderStars('singing_score', formData.singing_score)}
             </div>
           </div>
@@ -837,7 +872,8 @@ export default function ShowEditPage() {
 const styles: Record<string, React.CSSProperties> = {
   container: {
     minHeight: '100vh',
-    backgroundColor: '#faf8f7'
+    backgroundColor: '#faf8f7',
+    paddingBottom: '96px'
   },
   header: {
     position: 'fixed',

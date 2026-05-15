@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Empty } from 'antd-mobile'
+import { Empty, PullToRefresh } from 'antd-mobile'
 import { getMusicals } from '../services/musical'
+import { cache } from '../hooks/useCache'
 import type { MusicalCard, MusicalType } from '../types'
 
 const TYPE_OPTIONS: { label: string; value: MusicalType | '' }[] = [
@@ -24,34 +25,58 @@ const getTypeColor = (type: MusicalType) => {
   return typeColorMap[type] || { bg: '#a8dadc', text: '#1a4e50' }
 }
 
+const CACHE_KEY = 'musical_musicals_cache'
+
 export default function Musicals() {
   const navigate = useNavigate()
-  const [musicals, setMusicals] = useState<MusicalCard[]>([])
-  const [loading, setLoading] = useState(true)
+  const [musicals, setMusicals] = useState<MusicalCard[]>(() => cache.get<MusicalCard[]>(`${CACHE_KEY}_`) || [])
+  const [loading, setLoading] = useState(!musicals.length)
   const [filterVisible, setFilterVisible] = useState(false)
-  const [filterExpanded, setFilterExpanded] = useState(false)
+  const [filterExpanded, setFilterExpanded] = useState<'type' | 'name' | null>(null)
   const [selectedType, setSelectedType] = useState<MusicalType | ''>('')
+  const [selectedMusicalId, setSelectedMusicalId] = useState<string>('')
+  const [selectedMusicalName, setSelectedMusicalName] = useState<string>('')
+  const [nameSearch, setNameSearch] = useState('')
 
-  useEffect(() => {
-    loadMusicals()
-  }, [selectedType])
+  const sortMusicals = (data: MusicalCard[]) => {
+    return [...data].sort((a, b) => {
+      if (b.watch_count !== a.watch_count) return b.watch_count - a.watch_count
+      return b.avg_score - a.avg_score
+    })
+  }
 
-  const loadMusicals = async () => {
+  const loadMusicals = useCallback(async (forceRefresh: boolean = false) => {
+    const cacheKey = `${CACHE_KEY}_${selectedType}`
+
+    if (!forceRefresh) {
+      const cached = cache.get<MusicalCard[]>(cacheKey)
+      if (cached) {
+        setMusicals(sortMusicals(cached))
+        setLoading(false)
+        return
+      }
+    }
+
+    setLoading(true)
     try {
-      setLoading(true)
       const data = await getMusicals(selectedType || undefined)
-      data.sort((a, b) => {
-        if (b.watch_count !== a.watch_count) {
-          return b.watch_count - a.watch_count
-        }
-        return b.avg_score - a.avg_score
-      })
-      setMusicals(data)
+      setMusicals(sortMusicals(data))
+      cache.set(cacheKey, data)
     } catch (error) {
       console.error('加载剧目列表失败:', error)
+      const cached = cache.get<MusicalCard[]>(cacheKey, true)
+      if (cached) setMusicals(sortMusicals(cached))
     } finally {
       setLoading(false)
     }
+  }, [selectedType])
+
+  useEffect(() => {
+    loadMusicals()
+  }, [loadMusicals])
+
+  const handleRefresh = async () => {
+    await loadMusicals(true)
   }
 
   const handleCardClick = (id: string) => {
@@ -64,14 +89,37 @@ export default function Musicals() {
 
   const handleOpenFilter = () => {
     setFilterVisible(true)
-    setFilterExpanded(false)
+    setFilterExpanded(null)
+    setNameSearch('')
   }
 
   const handleTypeSelect = (type: MusicalType | '') => {
     setSelectedType(type)
+    setSelectedMusicalId('')
+    setSelectedMusicalName('')
     setFilterVisible(false)
-    setFilterExpanded(false)
+    setFilterExpanded(null)
   }
+
+  const handleMusicalSelect = (musical: MusicalCard) => {
+    setSelectedMusicalId(musical.id)
+    setSelectedMusicalName(musical.name)
+    setSelectedType('')
+    setFilterVisible(false)
+    setFilterExpanded(null)
+  }
+
+  const handleClearNameFilter = () => {
+    setSelectedMusicalId('')
+    setSelectedMusicalName('')
+    setFilterVisible(false)
+    setFilterExpanded(null)
+  }
+
+  // 名称筛选列表
+  const filteredMusicalsByName = musicals.filter(m =>
+    m.name.toLowerCase().includes(nameSearch.toLowerCase())
+  )
 
   return (
     <div style={styles.container}>
@@ -90,18 +138,18 @@ export default function Musicals() {
       {filterVisible && (
         <div style={styles.overlay} onClick={() => {
           setFilterVisible(false)
-          setFilterExpanded(false)
+          setFilterExpanded(null)
         }}>
           <div style={styles.filterPopup} onClick={e => e.stopPropagation()}>
-            <div style={styles.filterRow} onClick={() => setFilterExpanded(!filterExpanded)}>
+            <div style={styles.filterRow} onClick={() => setFilterExpanded(filterExpanded === 'type' ? null : 'type')}>
               <span style={styles.filterRowText}>剧目类型</span>
               <span className="material-symbols-outlined" style={{
                 ...styles.filterRowArrow,
-                transform: filterExpanded ? 'rotate(90deg)' : 'rotate(0deg)',
+                transform: filterExpanded === 'type' ? 'rotate(90deg)' : 'rotate(0deg)',
                 transition: 'transform 0.2s'
               }}>expand_more</span>
             </div>
-            {filterExpanded && (
+            {filterExpanded === 'type' && (
               <div style={styles.filterOptions}>
                 {TYPE_OPTIONS.map(option => (
                   <div
@@ -117,19 +165,75 @@ export default function Musicals() {
                 ))}
               </div>
             )}
+            <div style={styles.filterRow} onClick={() => setFilterExpanded(filterExpanded === 'name' ? null : 'name')}>
+              <span style={styles.filterRowText}>剧目名称</span>
+              <span style={styles.filterRowValue}>
+                {selectedMusicalName || ''}
+              </span>
+              <span className="material-symbols-outlined" style={{
+                ...styles.filterRowArrow,
+                transform: filterExpanded === 'name' ? 'rotate(90deg)' : 'rotate(0deg)',
+                transition: 'transform 0.2s'
+              }}>expand_more</span>
+            </div>
+            {filterExpanded === 'name' && (
+              <div style={styles.filterSearchSection}>
+                <input
+                  type="text"
+                  style={styles.searchInput}
+                  placeholder="搜索剧目..."
+                  value={nameSearch}
+                  onChange={e => setNameSearch(e.target.value)}
+                  autoFocus
+                />
+                <div style={styles.filterOptionsScrollable}>
+                  <div
+                    style={{
+                      ...styles.filterOption,
+                      ...(!selectedMusicalId ? styles.filterOptionActive : {})
+                    }}
+                    onClick={handleClearNameFilter}
+                  >
+                    全部
+                  </div>
+                  {filteredMusicalsByName.map(musical => (
+                    <div
+                      key={musical.id}
+                      style={{
+                        ...styles.filterOption,
+                        ...(selectedMusicalId === musical.id ? styles.filterOptionActive : {})
+                      }}
+                      onClick={() => handleMusicalSelect(musical)}
+                    >
+                      {musical.name}
+                    </div>
+                  ))}
+                  {filteredMusicalsByName.length === 0 && (
+                    <div style={styles.filterEmpty}>暂无匹配剧目</div>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
 
       {/* Main Content */}
       <main style={styles.content}>
-        {loading ? (
+        <PullToRefresh
+          onRefresh={handleRefresh}
+          pullingText="下拉刷新"
+          canReleaseText="释放刷新"
+          refreshingText="加载中..."
+          completeText="刷新成功"
+        >
+        {loading && !musicals.length ? (
           <div style={styles.loading}>加载中...</div>
-        ) : musicals.length === 0 ? (
+        ) : (selectedMusicalId ? musicals.filter(m => m.id === selectedMusicalId) : musicals).length === 0 ? (
           <Empty description="暂无剧目记录" />
         ) : (
           <div style={styles.grid}>
-            {musicals.map(musical => {
+            {(selectedMusicalId ? musicals.filter(m => m.id === selectedMusicalId) : musicals).map(musical => {
               const color = getTypeColor(musical.type)
               return (
                 <article
@@ -170,6 +274,7 @@ export default function Musicals() {
             })}
           </div>
         )}
+        </PullToRefresh>
       </main>
     </div>
   )
@@ -248,6 +353,16 @@ const styles: Record<string, React.CSSProperties> = {
     color: '#1a1c1a',
     fontWeight: 500
   },
+  filterRowValue: {
+    flex: 1,
+    fontSize: '12px',
+    color: '#707979',
+    textAlign: 'right' as const,
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+    margin: '0 8px'
+  },
   filterRowArrow: {
     fontSize: '20px',
     color: '#707979'
@@ -269,6 +384,34 @@ const styles: Record<string, React.CSSProperties> = {
   filterOptionActive: {
     backgroundColor: '#356668',
     color: '#ffffff'
+  },
+  filterSearchSection: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '4px',
+    padding: '0 12px 12px'
+  },
+  searchInput: {
+    width: '100%',
+    padding: '8px 12px',
+    border: '1px solid rgba(192, 200, 200, 0.3)',
+    borderRadius: '8px',
+    fontSize: '14px',
+    outline: 'none',
+    backgroundColor: 'rgba(255, 255, 255, 0.5)'
+  },
+  filterOptionsScrollable: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '4px',
+    maxHeight: '320px',
+    overflowY: 'auto'
+  },
+  filterEmpty: {
+    padding: '8px 12px',
+    fontSize: '14px',
+    color: '#707979',
+    textAlign: 'center'
   },
   content: {
     padding: '96px 20px 32px',

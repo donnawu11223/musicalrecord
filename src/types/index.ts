@@ -25,15 +25,15 @@ export interface Show {
   id: string
   show_time: string
   musical_id: string
-  city: string
-  theater: string
-  seat: string
-  plot_score: number
-  visual_score: number
-  acting_score: number
-  script_score: number
-  singing_score: number
-  note: string
+  city?: string
+  theater?: string
+  seat?: string
+  plot_score?: number
+  visual_score?: number
+  acting_score?: number
+  script_score?: number
+  singing_score?: number
+  note?: string
   created_at: string
   updated_at: string
 }

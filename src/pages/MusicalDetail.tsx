@@ -1,7 +1,9 @@
-import { useState, useEffect } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
-import { Dialog } from 'antd-mobile'
+import { useState, useEffect, useCallback } from 'react'
+import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import { getMusicalById, deleteMusical } from '../services/musical'
+import { cache } from '../hooks/useCache'
+import { showToast } from '../components/Toast'
+import ConfirmDialog from '../components/ConfirmDialog'
 import type { MusicalDetail, MusicalType } from '../types'
 
 const TYPE_TAG_STYLES: Record<MusicalType, React.CSSProperties> = {
@@ -26,27 +28,30 @@ const TYPE_TAG_STYLES: Record<MusicalType, React.CSSProperties> = {
 export default function MusicalDetailPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
+  const location = useLocation()
   const [musical, setMusical] = useState<MusicalDetail | null>(null)
   const [loading, setLoading] = useState(true)
   const [showMenu, setShowMenu] = useState(false)
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
 
-  useEffect(() => {
-    if (id) {
-      loadMusical(id)
-    }
-  }, [id])
-
-  const loadMusical = async (musicalId: string) => {
+  const loadMusical = useCallback(async (musicalId: string) => {
+    setLoading(true)
     try {
-      setLoading(true)
       const data = await getMusicalById(musicalId)
       setMusical(data)
+      cache.set(`musical_detail_${musicalId}`, data)
     } catch (error) {
       console.error('加载剧目详情失败:', error)
+      const cached = cache.get<MusicalDetail>(`musical_detail_${musicalId}`, true)
+      if (cached) setMusical(cached)
     } finally {
       setLoading(false)
     }
-  }
+  }, [])
+
+  useEffect(() => {
+    if (id) loadMusical(id)
+  }, [id, loadMusical, location.key])
 
   const handleBack = () => {
     navigate(-1)
@@ -57,20 +62,24 @@ export default function MusicalDetailPage() {
     navigate(`/musicals/${id}/edit`)
   }
 
-  const handleDelete = async () => {
+  const handleDelete = () => {
     setShowMenu(false)
-    const confirmed = await Dialog.confirm({
-      content: '确定要删除这个剧目吗？删除后将无法找回。',
-      confirmText: '确定',
-      cancelText: '取消'
-    })
-    if (confirmed) {
-      try {
-        await deleteMusical(id!)
-        navigate('/musicals')
-      } catch (error: any) {
-        Dialog.alert({ content: error.message || '删除失败' })
-      }
+    setShowDeleteConfirm(true)
+  }
+
+  const handleDeleteConfirm = async () => {
+    setShowDeleteConfirm(false)
+    try {
+      await deleteMusical(id!)
+      cache.remove(`musical_detail_${id}`)
+      Object.keys(localStorage).forEach(key => {
+        if (key.startsWith('musical_musicals_cache')) cache.remove(key)
+        if (key.startsWith('musical_shows_cache')) cache.remove(key)
+        if (key.startsWith('musical_artists_cache')) cache.remove(key)
+      })
+      navigate('/musicals')
+    } catch (error: any) {
+      showToast({ content: error.message || '删除失败', icon: 'fail' })
     }
   }
 
@@ -92,6 +101,7 @@ export default function MusicalDetailPage() {
 
   return (
     <div style={styles.container}>
+      {showMenu && <div style={styles.menuOverlay} onClick={() => setShowMenu(false)} />}
       {/* 顶部导航栏 */}
       <header style={styles.header}>
         <button style={styles.iconBtn} onClick={handleBack}>
@@ -120,7 +130,7 @@ export default function MusicalDetailPage() {
         {/* 剧目信息卡片 */}
         <section style={styles.infoCard}>
           <div style={styles.infoContent}>
-            <button style={styles.nameButton}>{musical.name}</button>
+            <span style={styles.nameLabel}>{musical.name}</span>
             <div style={styles.infoList}>
               {musical.brand && (
                 <div style={styles.infoRow}>
@@ -219,6 +229,13 @@ export default function MusicalDetailPage() {
           </section>
         )}
       </main>
+
+      <ConfirmDialog
+        visible={showDeleteConfirm}
+        content="确定要删除这个剧目吗？删除后将无法找回。"
+        onConfirm={handleDeleteConfirm}
+        onCancel={() => setShowDeleteConfirm(false)}
+      />
     </div>
   )
 }
@@ -228,6 +245,14 @@ const styles: Record<string, React.CSSProperties> = {
     minHeight: '100vh',
     backgroundColor: '#faf8f7',
     paddingBottom: '96px'
+  },
+  menuOverlay: {
+    position: 'fixed',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 199
   },
   header: {
     position: 'fixed',
@@ -324,16 +349,14 @@ const styles: Record<string, React.CSSProperties> = {
     flexDirection: 'column',
     alignItems: 'center'
   },
-  nameButton: {
+  nameLabel: {
     backgroundColor: '#a8dadc',
     color: '#306163',
     fontSize: '16px',
     fontWeight: 600,
     padding: '8px 16px',
     borderRadius: '8px',
-    border: 'none',
-    marginBottom: '16px',
-    cursor: 'default'
+    marginBottom: '16px'
   },
   infoList: {
     width: '100%',

@@ -1,5 +1,6 @@
 import { supabase } from '../lib/supabase'
 import type { Artist, ArtistDetail } from '../types'
+import { calcMultiShowAvg } from '../lib/score'
 
 // 获取演员列表（带统计信息）
 export async function getArtists(): Promise<(Artist & { watch_count: number; avg_score: number })[]> {
@@ -26,32 +27,29 @@ export async function getArtists(): Promise<(Artist & { watch_count: number; avg
 
   if (reviewError) throw reviewError
 
-  // 统计每个演员的数据
-  const artistStats = new Map<string, { watch_count: number; total_score: number }>()
+  // 按演员ID分组场次
+  const artistShows = new Map<string, any[]>()
   actorReviews?.forEach((review: any) => {
     const artistId = review.artist_id
     const show = review.show
     if (show) {
-      const scores = [show.plot_score, show.visual_score, show.acting_score, show.script_score, show.singing_score]
-      const avg = scores.reduce((a: number, b: number) => a + b, 0) / 5
-
-      const existing = artistStats.get(artistId)
+      const existing = artistShows.get(artistId)
       if (existing) {
-        existing.watch_count++
-        existing.total_score += avg
+        existing.push(show)
       } else {
-        artistStats.set(artistId, { watch_count: 1, total_score: avg })
+        artistShows.set(artistId, [show])
       }
     }
   })
 
   return (data || []).map(artist => {
-    const stats = artistStats.get(artist.id) || { watch_count: 0, total_score: 0 }
-    // 均分 * 2 保留1位小数
+    const shows = artistShows.get(artist.id) || []
+    const watchCount = shows.length
+    const avgScore = calcMultiShowAvg(shows)
     return {
       ...artist,
-      watch_count: stats.watch_count,
-      avg_score: stats.watch_count > 0 ? Math.round((stats.total_score / stats.watch_count) * 2 * 10) / 10 : 0
+      watch_count: watchCount,
+      avg_score: avgScore
     }
   })
 }
@@ -86,13 +84,7 @@ export async function getArtistById(id: string): Promise<ArtistDetail> {
   // 计算统计信息
   const shows = actorReviews?.map((r: any) => r.show).filter(Boolean) || []
   const watchCount = shows.length
-  // 均分 * 2 保留1位小数
-  const avgScore = watchCount > 0
-    ? Math.round((shows.reduce((sum: number, s: any) => {
-        const avg = (s.plot_score + s.visual_score + s.acting_score + s.script_score + s.singing_score) / 5
-        return sum + avg
-      }, 0) / watchCount) * 2 * 10) / 10
-    : 0
+  const avgScore = calcMultiShowAvg(shows)
 
   // 统计剧目参与次数
   const musicalStats = new Map<string, { musical_id: string; musical_name: string; count: number }>()
@@ -116,13 +108,14 @@ export async function getArtistById(id: string): Promise<ArtistDetail> {
   const showReviews = actorReviews?.map((review: any) => {
     const show = review.show
     const musical = show?.musical
+    const { show: _show, ...reviewWithoutShow } = review
     return {
       ...show,
+      ...reviewWithoutShow,
       show_id: show?.id,
-      ...review,
       musical_name: musical?.name || ''
     }
-  }) || []
+  }).sort((a: any, b: any) => new Date(b.show_time).getTime() - new Date(a.show_time).getTime()) || []
 
   return {
     ...artist,

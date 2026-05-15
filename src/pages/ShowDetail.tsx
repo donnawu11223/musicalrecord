@@ -1,7 +1,10 @@
-import { useState, useEffect } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
-import { Dialog } from 'antd-mobile'
+import { useState, useEffect, useCallback } from 'react'
+import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import { getShowById, deleteShow } from '../services/show'
+import { cache } from '../hooks/useCache'
+import { showToast } from '../components/Toast'
+import ConfirmDialog from '../components/ConfirmDialog'
+import { calcShowAvg } from '../lib/score'
 import type { ShowDetail, MusicalType } from '../types'
 
 const TYPE_TAG_STYLES: Record<MusicalType, React.CSSProperties> = {
@@ -33,27 +36,30 @@ const SCORE_LABELS: Record<MusicalType, string> = {
 export default function ShowDetailPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
+  const location = useLocation()
   const [show, setShow] = useState<ShowDetail | null>(null)
   const [loading, setLoading] = useState(true)
   const [showMenu, setShowMenu] = useState(false)
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
 
-  useEffect(() => {
-    if (id) {
-      loadShow(id)
-    }
-  }, [id])
-
-  const loadShow = async (showId: string) => {
+  const loadShow = useCallback(async (showId: string) => {
+    setLoading(true)
     try {
-      setLoading(true)
       const data = await getShowById(showId)
       setShow(data)
+      cache.set(`musical_show_${showId}`, data)
     } catch (error) {
       console.error('加载场次详情失败:', error)
+      const cached = cache.get<ShowDetail>(`musical_show_${showId}`, true)
+      if (cached) setShow(cached)
     } finally {
       setLoading(false)
     }
-  }
+  }, [])
+
+  useEffect(() => {
+    if (id) loadShow(id)
+  }, [id, loadShow, location.key])
 
   const handleBack = () => {
     navigate(-1)
@@ -64,20 +70,25 @@ export default function ShowDetailPage() {
     navigate(`/shows/${id}/edit`)
   }
 
-  const handleDelete = async () => {
+  const handleDelete = () => {
     setShowMenu(false)
-    const confirmed = await Dialog.confirm({
-      content: '确定要删除这个场次吗？删除后将无法找回。',
-      confirmText: '确定',
-      cancelText: '取消'
-    })
-    if (confirmed) {
-      try {
-        await deleteShow(id!)
-        navigate('/shows')
-      } catch (error: any) {
-        Dialog.alert({ content: error.message || '删除失败' })
-      }
+    setShowDeleteConfirm(true)
+  }
+
+  const handleDeleteConfirm = async () => {
+    setShowDeleteConfirm(false)
+    try {
+      await deleteShow(id!)
+      cache.remove(`musical_show_${id}`)
+      Object.keys(localStorage).forEach(key => {
+        if (key.startsWith('musical_shows_cache')) cache.remove(key)
+        if (key.startsWith('musical_musicals_cache')) cache.remove(key)
+        if (key.startsWith('musical_artists_cache')) cache.remove(key)
+        if (key.startsWith('musical_years_cache')) cache.remove(key)
+      })
+      navigate('/')
+    } catch (error: any) {
+      showToast({ content: error.message || '删除失败', icon: 'fail' })
     }
   }
 
@@ -92,20 +103,19 @@ export default function ShowDetailPage() {
     })
   }
 
-  const calcAvgScore = () => {
+  const getAvgScore = () => {
     if (!show) return 0
-    const scores = [show.plot_score, show.visual_score, show.acting_score, show.script_score, show.singing_score]
-    return Math.round((scores.reduce((a, b) => a + b, 0) / 5) * 2 * 10) / 10
+    return Math.round(calcShowAvg(show) * 2 * 10) / 10
   }
 
   const getRadarPoints = () => {
     if (!show) return ''
     const scores = [
-      show.plot_score,
-      show.visual_score,
-      show.acting_score,
-      show.script_score,
-      show.singing_score
+      show.plot_score ?? 0,
+      show.visual_score ?? 0,
+      show.acting_score ?? 0,
+      show.script_score ?? 0,
+      show.singing_score ?? 0
     ]
     // 五边形顶点坐标（满分位置），顺序：剧情(上)、舞美(右上)、演技(右下)、台词(左下)、演唱(左上)
     const vertices = [
@@ -146,6 +156,7 @@ export default function ShowDetailPage() {
 
   return (
     <div style={styles.container}>
+      {showMenu && <div style={styles.menuOverlay} onClick={() => setShowMenu(false)} />}
       {/* 顶部导航栏 */}
       <header style={styles.header}>
         <button style={styles.iconBtn} onClick={handleBack}>
@@ -235,7 +246,7 @@ export default function ShowDetailPage() {
               </svg>
             </div>
             <div style={styles.avgScoreContainer}>
-              <span style={styles.avgScoreValue}>{calcAvgScore().toFixed(1)}</span>
+              <span style={styles.avgScoreValue}>{getAvgScore().toFixed(1)}</span>
             </div>
           </div>
         </section>
@@ -287,6 +298,13 @@ export default function ShowDetailPage() {
           </section>
         )}
       </main>
+
+      <ConfirmDialog
+        visible={showDeleteConfirm}
+        content="确定要删除这个场次吗？删除后将无法找回。"
+        onConfirm={handleDeleteConfirm}
+        onCancel={() => setShowDeleteConfirm(false)}
+      />
     </div>
   )
 }
@@ -296,6 +314,14 @@ const styles: Record<string, React.CSSProperties> = {
     minHeight: '100vh',
     backgroundColor: '#faf8f7',
     paddingBottom: '96px'
+  },
+  menuOverlay: {
+    position: 'fixed',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 199
   },
   header: {
     position: 'fixed',

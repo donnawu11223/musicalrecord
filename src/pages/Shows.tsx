@@ -1,7 +1,8 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Empty } from 'antd-mobile'
+import { Empty, PullToRefresh } from 'antd-mobile'
 import { getShows, getShowYears } from '../services/show'
+import { cache } from '../hooks/useCache'
 import type { ShowCard, MusicalType } from '../types'
 
 const TYPE_OPTIONS: { label: string; value: MusicalType | '' }[] = [
@@ -12,21 +13,79 @@ const TYPE_OPTIONS: { label: string; value: MusicalType | '' }[] = [
   { label: '舞剧', value: '舞剧' }
 ]
 
+const CACHE_KEY_SHOWS = 'musical_shows_cache'
+const CACHE_KEY_YEARS = 'musical_years_cache'
+
 export default function Shows() {
   const navigate = useNavigate()
-  const [shows, setShows] = useState<ShowCard[]>([])
-  const [loading, setLoading] = useState(true)
+  const [shows, setShows] = useState<ShowCard[]>(() => cache.get<ShowCard[]>(`${CACHE_KEY_SHOWS}__`) || [])
+  const [loading, setLoading] = useState(!shows.length)
   const [filterVisible, setFilterVisible] = useState(false)
   const [filterExpanded, setFilterExpanded] = useState<'year' | 'type' | null>(null)
   const [selectedYear, setSelectedYear] = useState<string>('')
   const [selectedType, setSelectedType] = useState<MusicalType | ''>('')
-  const [years, setYears] = useState<string[]>([])
+  const [years, setYears] = useState<string[]>(() => cache.get<string[]>(CACHE_KEY_YEARS) || [])
   const filterRef = useRef<HTMLDivElement>(null)
+
+  // 加载场次数据
+  const loadShows = useCallback(async (forceRefresh: boolean = false) => {
+    const cacheKey = `${CACHE_KEY_SHOWS}_${selectedYear}_${selectedType}`
+
+    if (!forceRefresh) {
+      const cached = cache.get<ShowCard[]>(cacheKey, true)
+      if (cached) {
+        setShows(cached)
+        setLoading(false)
+        return
+      }
+    }
+
+    setLoading(true)
+    try {
+      const data = await getShows({
+        year: selectedYear || undefined,
+        type: selectedType || undefined
+      })
+      setShows(data)
+      cache.set(cacheKey, data)
+    } catch (error) {
+      console.error('加载场次列表失败:', error)
+      // 网络失败时尝试使用缓存
+      const cached = cache.get<ShowCard[]>(cacheKey, true)
+      if (cached) {
+        setShows(cached)
+      }
+    } finally {
+      setLoading(false)
+    }
+  }, [selectedYear, selectedType])
+
+  // 加载年份列表
+  const loadYears = useCallback(async () => {
+    const cached = cache.get<string[]>(CACHE_KEY_YEARS)
+    if (cached) {
+      setYears(cached)
+    }
+
+    try {
+      const yearList = await getShowYears()
+      setYears(yearList)
+      cache.set(CACHE_KEY_YEARS, yearList)
+    } catch (error) {
+      console.error('加载年份失败:', error)
+    }
+  }, [])
+
+  // 下拉刷新
+  const handleRefresh = async () => {
+    await loadShows(true)
+    await loadYears()
+  }
 
   useEffect(() => {
     loadShows()
     loadYears()
-  }, [selectedYear, selectedType])
+  }, [loadShows, loadYears])
 
   useEffect(() => {
     if (filterVisible && filterRef.current) {
@@ -38,30 +97,6 @@ export default function Shows() {
       })
     }
   }, [filterVisible])
-
-  const loadYears = async () => {
-    try {
-      const yearList = await getShowYears()
-      setYears(yearList)
-    } catch (error) {
-      console.error('加载年份失败:', error)
-    }
-  }
-
-  const loadShows = async () => {
-    try {
-      setLoading(true)
-      const data = await getShows({
-        year: selectedYear || undefined,
-        type: selectedType || undefined
-      })
-      setShows(data)
-    } catch (error) {
-      console.error('加载场次列表失败:', error)
-    } finally {
-      setLoading(false)
-    }
-  }
 
   const [filterPosition, setFilterPosition] = useState({ top: 0, left: 0, width: 0 })
 
@@ -109,12 +144,11 @@ export default function Shows() {
     }
   }
 
-  // 剧目类型与颜色映射
   const typeColorMap: Record<MusicalType, { bg: string; text: string }> = {
-    '中国音乐剧': { bg: '#a8dadc', text: '#1a4e50' }, // 青绿色
-    '非中音乐剧': { bg: '#ffb6c1', text: '#6b3741' }, // 粉红色
-    '话剧': { bg: '#d3cbff', text: '#473d81' },       // 浅紫色
-    '舞剧': { bg: '#b9ecee', text: '#002021' },       // 浅青色
+    '中国音乐剧': { bg: '#a8dadc', text: '#1a4e50' },
+    '非中音乐剧': { bg: '#ffb6c1', text: '#6b3741' },
+    '话剧': { bg: '#d3cbff', text: '#473d81' },
+    '舞剧': { bg: '#b9ecee', text: '#002021' },
   }
 
   const getTypeColor = (type: MusicalType) => {
@@ -207,64 +241,72 @@ export default function Shows() {
         </div>
       )}
 
-      {/* Main Content */}
+      {/* Main Content with PullToRefresh */}
       <main style={styles.content}>
-        {loading ? (
-          <div style={styles.loading}>加载中...</div>
-        ) : shows.length === 0 ? (
-          <Empty description="暂无场次记录" />
-        ) : (
-          <div style={styles.grid}>
-            {shows.map((show) => {
-              const color = getTypeColor(show.musical_type)
-              return (
-                <article
-                  key={show.id}
-                  style={{
-                    ...styles.card,
-                    backgroundColor: color.bg
-                  }}
-                  onClick={() => handleCardClick(show.id)}
-                >
-                  {/* Main Details */}
-                  <div style={styles.cardMain}>
-                    <h2 style={{ ...styles.cardName, color: color.text }}>{show.musical_name}</h2>
-                    <p style={{ ...styles.cardLocation, color: color.text }}>
-                      {(show.city || show.theater) ? `${show.city || ''} ${show.theater || ''}`.trim() : '未知剧场'}
-                    </p>
-                    <div style={styles.seatWrapper}>
-                      <span style={{ ...styles.seatTag, color: color.text }}>{show.seat || '未知座位'}</span>
+        <PullToRefresh
+          onRefresh={handleRefresh}
+          pullingText="下拉刷新"
+          canReleaseText="释放刷新"
+          refreshingText="加载中..."
+          completeText="刷新成功"
+        >
+          {loading && !shows.length ? (
+            <div style={styles.loading}>加载中...</div>
+          ) : shows.length === 0 ? (
+            <Empty description="暂无场次记录" />
+          ) : (
+            <div style={styles.grid}>
+              {shows.map((show) => {
+                const color = getTypeColor(show.musical_type)
+                return (
+                  <article
+                    key={show.id}
+                    style={{
+                      ...styles.card,
+                      backgroundColor: color.bg
+                    }}
+                    onClick={() => handleCardClick(show.id)}
+                  >
+                    {/* Main Details */}
+                    <div style={styles.cardMain}>
+                      <h2 style={{ ...styles.cardName, color: color.text }}>{show.musical_name}</h2>
+                      <p style={{ ...styles.cardLocation, color: color.text }}>
+                        {(show.city || show.theater) ? `${show.city || ''} ${show.theater || ''}`.trim() : '未知剧场'}
+                      </p>
+                      <div style={styles.seatWrapper}>
+                        <span style={{ ...styles.seatTag, color: color.text }}>{show.seat || '未知座位'}</span>
+                      </div>
                     </div>
-                  </div>
 
-                  {/* Stub Separator with Notches */}
-                  <div style={styles.separator}>
-                    <div style={{ ...styles.separatorLine, borderColor: `${color.text}30` }}></div>
-                    <div style={{ ...styles.notch, left: -4 }}></div>
-                    <div style={{ ...styles.notch, right: -4 }}></div>
-                  </div>
+                    {/* Stub Separator with Notches */}
+                    <div style={styles.separator}>
+                      <div style={{ ...styles.separatorLine, borderColor: `${color.text}30` }}></div>
+                      <div style={{ ...styles.notch, left: -4 }}></div>
+                      <div style={{ ...styles.notch, right: -4 }}></div>
+                    </div>
 
-                  {/* Ticket Stub (Date) */}
-                  <div style={styles.cardStub}>
-                    {(() => {
-                      const parts = formatDateParts(show.show_time)
-                      return (
-                        <>
-                          <div style={{ ...styles.monthText, color: color.text }}>{parts.month}</div>
-                          <div style={styles.dayYearContainer}>
-                            <div style={{ ...styles.dayText, color: color.text }}>{parts.day}</div>
-                            <div style={{ ...styles.yearText, color: color.text }}>{parts.year}</div>
-                          </div>
-                          <div style={{ ...styles.timeText, color: color.text }}>{parts.time}</div>
-                        </>
-                      )
-                    })()}
-                  </div>
-                </article>
-              )
-            })}
-          </div>
-        )}
+                    {/* Ticket Stub (Date) */}
+                    <div style={styles.cardStub}>
+                      {(() => {
+                        const parts = formatDateParts(show.show_time)
+                        return (
+                          <>
+                            <div style={{ ...styles.monthText, color: color.text }}>{parts.month}</div>
+                            <div style={styles.dayYearContainer}>
+                              <div style={{ ...styles.dayText, color: color.text }}>{parts.day}</div>
+                              <div style={{ ...styles.yearText, color: color.text }}>{parts.year}</div>
+                            </div>
+                            <div style={{ ...styles.timeText, color: color.text }}>{parts.time}</div>
+                          </>
+                        )
+                      })()}
+                    </div>
+                  </article>
+                )
+              })}
+            </div>
+          )}
+        </PullToRefresh>
       </main>
     </div>
   )
@@ -305,7 +347,8 @@ const styles: Record<string, React.CSSProperties> = {
   title: {
     fontSize: '16px',
     fontWeight: 600,
-    color: '#356668'
+    color: '#356668',
+    margin: 0
   },
   overlay: {
     position: 'fixed',
@@ -402,7 +445,8 @@ const styles: Record<string, React.CSSProperties> = {
     marginBottom: '4px',
     overflow: 'hidden',
     textOverflow: 'ellipsis',
-    whiteSpace: 'nowrap'
+    whiteSpace: 'nowrap',
+    margin: 0
   },
   cardLocation: {
     fontSize: '10px',

@@ -12,11 +12,13 @@ import Artists from './pages/Artists'
 import ArtistDetail from './pages/ArtistDetail'
 import ArtistEdit from './pages/ArtistEdit'
 import ToastContainer from './components/Toast'
+import ScrollToTop from './components/ScrollToTop'
 
 function App() {
   return (
     <ConfigProvider locale={zhCN}>
       <BrowserRouter>
+        <ScrollToTop />
         <Routes>
           <Route path="/" element={<MainLayout />}>
             <Route index element={<Shows />} />

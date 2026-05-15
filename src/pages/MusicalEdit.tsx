@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { showToast } from '../components/Toast'
 import { getMusicalById, createMusical, updateMusical, getMusicalNames } from '../services/musical'
+import { cache } from '../hooks/useCache'
 import type { MusicalType } from '../types'
 
 const TYPE_OPTIONS: MusicalType[] = ['中国音乐剧', '非中音乐剧', '话剧', '舞剧']
@@ -20,6 +21,7 @@ export default function MusicalEditPage() {
     plot: ''
   })
   const [showTypePicker, setShowTypePicker] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
 
   useEffect(() => {
     if (isEdit && id) {
@@ -47,6 +49,7 @@ export default function MusicalEditPage() {
   }
 
   const handleSubmit = async () => {
+    if (submitting) return
     // 校验剧目名称不为空
     if (!formData.name.trim()) {
       showToast({ content: '请填写剧目名称', icon: 'fail' })
@@ -73,6 +76,7 @@ export default function MusicalEditPage() {
       return
     }
 
+    setSubmitting(true)
     try {
       const musicalData = {
         name: formData.name.trim(),
@@ -88,10 +92,21 @@ export default function MusicalEditPage() {
         await createMusical(musicalData)
         showToast({ content: '创建成功', icon: 'success' })
       }
+
+      // 清除缓存
+      if (id) cache.remove(`musical_detail_${id}`)
+      Object.keys(localStorage).forEach(key => {
+        if (key.startsWith('musical_musicals_cache')) cache.remove(key)
+        if (key.startsWith('musical_shows_cache')) cache.remove(key)
+        if (key.startsWith('musical_artists_cache')) cache.remove(key)
+      })
+
       navigate(-1)
     } catch (error) {
       console.error('保存失败:', error)
       showToast({ content: '保存失败', icon: 'fail' })
+    } finally {
+      setSubmitting(false)
     }
   }
 
@@ -120,7 +135,7 @@ export default function MusicalEditPage() {
           <span className="material-symbols-outlined">arrow_back</span>
         </button>
         <h1 style={styles.title}>{isEdit ? '编辑剧目' : '新增剧目'}</h1>
-        <button style={styles.iconBtn} onClick={handleSubmit}>
+        <button style={{ ...styles.iconBtn, opacity: submitting ? 0.5 : 1 }} onClick={handleSubmit} disabled={submitting}>
           <span className="material-symbols-outlined">check</span>
         </button>
       </header>
@@ -222,7 +237,8 @@ export default function MusicalEditPage() {
 const styles: Record<string, React.CSSProperties> = {
   container: {
     minHeight: '100vh',
-    backgroundColor: '#faf8f7'
+    backgroundColor: '#faf8f7',
+    paddingBottom: '96px'
   },
   header: {
     position: 'fixed',

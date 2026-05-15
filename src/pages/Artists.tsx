@@ -1,10 +1,13 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Empty } from 'antd-mobile'
+import { Empty, PullToRefresh } from 'antd-mobile'
 import { getArtists } from '../services/artist'
+import { cache } from '../hooks/useCache'
 import type { Artist } from '../types'
 
 type ArtistCard = Artist & { watch_count: number; avg_score: number }
+
+const CACHE_KEY = 'musical_artists_cache'
 
 // 4种颜色
 const CARD_COLORS = [
@@ -25,30 +28,50 @@ const getArtistColor = (name: string) => {
 
 export default function Artists() {
   const navigate = useNavigate()
-  const [artists, setArtists] = useState<ArtistCard[]>([])
-  const [loading, setLoading] = useState(true)
+  const [artists, setArtists] = useState<ArtistCard[]>(() => cache.get<ArtistCard[]>(CACHE_KEY) || [])
+  const [loading, setLoading] = useState(!artists.length)
+  const [filterVisible, setFilterVisible] = useState(false)
+  const [selectedArtistId, setSelectedArtistId] = useState<string>('')
+  const [selectedArtistName, setSelectedArtistName] = useState<string>('')
+  const [nameSearch, setNameSearch] = useState('')
 
-  useEffect(() => {
-    loadArtists()
-  }, [])
+  const sortArtists = (data: ArtistCard[]) => {
+    return [...data].sort((a, b) => {
+      if (b.watch_count !== a.watch_count) return b.watch_count - a.watch_count
+      return b.avg_score - a.avg_score
+    })
+  }
 
-  const loadArtists = async () => {
+  const loadArtists = useCallback(async (forceRefresh: boolean = false) => {
+    if (!forceRefresh) {
+      const cached = cache.get<ArtistCard[]>(CACHE_KEY)
+      if (cached) {
+        setArtists(sortArtists(cached))
+        setLoading(false)
+        return
+      }
+    }
+
+    setLoading(true)
     try {
-      setLoading(true)
       const data = await getArtists()
-      // 按观看次数和评分倒序排序
-      data.sort((a, b) => {
-        if (b.watch_count !== a.watch_count) {
-          return b.watch_count - a.watch_count
-        }
-        return b.avg_score - a.avg_score
-      })
-      setArtists(data)
+      setArtists(sortArtists(data))
+      cache.set(CACHE_KEY, data)
     } catch (error) {
       console.error('加载演员列表失败:', error)
+      const cached = cache.get<ArtistCard[]>(CACHE_KEY, true)
+      if (cached) setArtists(sortArtists(cached))
     } finally {
       setLoading(false)
     }
+  }, [])
+
+  useEffect(() => {
+    loadArtists()
+  }, [loadArtists])
+
+  const handleRefresh = async () => {
+    await loadArtists(true)
   }
 
   const handleCardClick = (id: string) => {
@@ -59,11 +82,32 @@ export default function Artists() {
     navigate('/artists/new')
   }
 
+  const handleOpenFilter = () => {
+    setFilterVisible(true)
+    setNameSearch('')
+  }
+
+  const handleArtistSelect = (artist: ArtistCard) => {
+    setSelectedArtistId(artist.id)
+    setSelectedArtistName(artist.name)
+    setFilterVisible(false)
+  }
+
+  const handleClearFilter = () => {
+    setSelectedArtistId('')
+    setSelectedArtistName('')
+    setFilterVisible(false)
+  }
+
+  const filteredArtistsByName = artists.filter(a =>
+    a.name.toLowerCase().includes(nameSearch.toLowerCase())
+  )
+
   return (
     <div style={styles.container}>
       {/* TopAppBar */}
       <header style={styles.header}>
-        <button style={styles.iconBtn}>
+        <button style={styles.iconBtn} onClick={handleOpenFilter}>
           <span className="material-symbols-outlined">filter_list</span>
         </button>
         <h1 style={styles.title}>演员记录</h1>
@@ -72,15 +116,72 @@ export default function Artists() {
         </button>
       </header>
 
+      {/* Filter Popup */}
+      {filterVisible && (
+        <div style={styles.overlay} onClick={() => setFilterVisible(false)}>
+          <div style={styles.filterPopup} onClick={e => e.stopPropagation()}>
+            <div style={styles.filterRow}>
+              <span style={styles.filterRowText}>演员名称</span>
+              <span style={styles.filterRowValue}>
+                {selectedArtistName || ''}
+              </span>
+            </div>
+            <div style={styles.filterSearchSection}>
+              <input
+                type="text"
+                style={styles.searchInput}
+                placeholder="搜索演员..."
+                value={nameSearch}
+                onChange={e => setNameSearch(e.target.value)}
+                autoFocus
+              />
+              <div style={styles.filterOptionsScrollable}>
+                <div
+                  style={{
+                    ...styles.filterOption,
+                    ...(!selectedArtistId ? styles.filterOptionActive : {})
+                  }}
+                  onClick={handleClearFilter}
+                >
+                  全部
+                </div>
+                {filteredArtistsByName.map(artist => (
+                  <div
+                    key={artist.id}
+                    style={{
+                      ...styles.filterOption,
+                      ...(selectedArtistId === artist.id ? styles.filterOptionActive : {})
+                    }}
+                    onClick={() => handleArtistSelect(artist)}
+                  >
+                    {artist.name}
+                  </div>
+                ))}
+                {filteredArtistsByName.length === 0 && (
+                  <div style={styles.filterEmpty}>暂无匹配演员</div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Main Content */}
       <main style={styles.content}>
-        {loading ? (
+        <PullToRefresh
+          onRefresh={handleRefresh}
+          pullingText="下拉刷新"
+          canReleaseText="释放刷新"
+          refreshingText="加载中..."
+          completeText="刷新成功"
+        >
+        {loading && !artists.length ? (
           <div style={styles.loading}>加载中...</div>
-        ) : artists.length === 0 ? (
+        ) : (selectedArtistId ? artists.filter(a => a.id === selectedArtistId) : artists).length === 0 ? (
           <Empty description="暂无演员记录" />
         ) : (
           <div style={styles.grid}>
-            {artists.map(artist => {
+            {(selectedArtistId ? artists.filter(a => a.id === selectedArtistId) : artists).map(artist => {
               const color = getArtistColor(artist.name)
               return (
                 <article
@@ -117,6 +218,7 @@ export default function Artists() {
             })}
           </div>
         )}
+        </PullToRefresh>
       </main>
     </div>
   )
@@ -158,6 +260,90 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: '16px',
     fontWeight: 600,
     color: '#356668'
+  },
+  overlay: {
+    position: 'fixed',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 100
+  },
+  filterPopup: {
+    position: 'absolute',
+    top: '8px',
+    left: '20px',
+    backgroundColor: 'rgba(255, 255, 255, 0.6)',
+    backdropFilter: 'blur(20px) saturate(180%)',
+    WebkitBackdropFilter: 'blur(20px) saturate(180%)',
+    borderRadius: '15px',
+    overflow: 'hidden',
+    boxShadow: '0 8px 24px rgba(53, 102, 104, 0.12)',
+    minWidth: '200px',
+    border: '1px solid rgba(255, 255, 255, 0.3)'
+  },
+  filterRow: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: '14px 16px',
+    height: '48px',
+    boxSizing: 'border-box'
+  },
+  filterRowText: {
+    fontSize: '14px',
+    color: '#1a1c1a',
+    fontWeight: 500
+  },
+  filterRowValue: {
+    flex: 1,
+    fontSize: '12px',
+    color: '#707979',
+    textAlign: 'right' as const,
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+    margin: '0 8px'
+  },
+  filterSearchSection: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '4px',
+    padding: '0 12px 12px'
+  },
+  searchInput: {
+    width: '100%',
+    padding: '8px 12px',
+    border: '1px solid rgba(192, 200, 200, 0.3)',
+    borderRadius: '8px',
+    fontSize: '14px',
+    outline: 'none',
+    backgroundColor: 'rgba(255, 255, 255, 0.5)'
+  },
+  filterOptionsScrollable: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '4px',
+    maxHeight: '320px',
+    overflowY: 'auto'
+  },
+  filterOption: {
+    padding: '10px 12px',
+    borderRadius: '10px',
+    fontSize: '14px',
+    color: '#1a1c1a',
+    cursor: 'pointer',
+    transition: 'all 0.2s'
+  },
+  filterOptionActive: {
+    backgroundColor: '#356668',
+    color: '#ffffff'
+  },
+  filterEmpty: {
+    padding: '8px 12px',
+    fontSize: '14px',
+    color: '#707979',
+    textAlign: 'center'
   },
   content: {
     padding: '96px 20px 32px',
