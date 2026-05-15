@@ -11,25 +11,26 @@ export default function ArtistDetailPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const location = useLocation()
-  const [artist, setArtist] = useState<ArtistDetail | null>(null)
-  const [loading, setLoading] = useState(true)
+  const [artist, setArtist] = useState<ArtistDetail | null>(() => id ? cache.get<ArtistDetail>(`musical_artist_${id}`) : null)
+  const [loading, setLoading] = useState(!artist)
   const [showMenu, setShowMenu] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
 
   const loadArtist = useCallback(async (artistId: string) => {
-    setLoading(true)
     try {
       const data = await getArtistById(artistId)
       setArtist(data)
       cache.set(`musical_artist_${artistId}`, data)
     } catch (error) {
       console.error('加载演员详情失败:', error)
-      const cached = cache.get<ArtistDetail>(`musical_artist_${artistId}`, true)
-      if (cached) setArtist(cached)
+      if (!artist) {
+        const cached = cache.get<ArtistDetail>(`musical_artist_${artistId}`, true)
+        if (cached) setArtist(cached)
+      }
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [artist])
 
   useEffect(() => {
     if (id) loadArtist(id)

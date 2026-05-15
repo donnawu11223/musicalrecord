@@ -29,25 +29,26 @@ export default function MusicalDetailPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const location = useLocation()
-  const [musical, setMusical] = useState<MusicalDetail | null>(null)
-  const [loading, setLoading] = useState(true)
+  const [musical, setMusical] = useState<MusicalDetail | null>(() => id ? cache.get<MusicalDetail>(`musical_detail_${id}`) : null)
+  const [loading, setLoading] = useState(!musical)
   const [showMenu, setShowMenu] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
 
   const loadMusical = useCallback(async (musicalId: string) => {
-    setLoading(true)
     try {
       const data = await getMusicalById(musicalId)
       setMusical(data)
       cache.set(`musical_detail_${musicalId}`, data)
     } catch (error) {
       console.error('加载剧目详情失败:', error)
-      const cached = cache.get<MusicalDetail>(`musical_detail_${musicalId}`, true)
-      if (cached) setMusical(cached)
+      if (!musical) {
+        const cached = cache.get<MusicalDetail>(`musical_detail_${musicalId}`, true)
+        if (cached) setMusical(cached)
+      }
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [musical])
 
   useEffect(() => {
     if (id) loadMusical(id)

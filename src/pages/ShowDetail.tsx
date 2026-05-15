@@ -37,25 +37,26 @@ export default function ShowDetailPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const location = useLocation()
-  const [show, setShow] = useState<ShowDetail | null>(null)
-  const [loading, setLoading] = useState(true)
+  const [show, setShow] = useState<ShowDetail | null>(() => id ? cache.get<ShowDetail>(`musical_show_${id}`) : null)
+  const [loading, setLoading] = useState(!show)
   const [showMenu, setShowMenu] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
 
   const loadShow = useCallback(async (showId: string) => {
-    setLoading(true)
     try {
       const data = await getShowById(showId)
       setShow(data)
       cache.set(`musical_show_${showId}`, data)
     } catch (error) {
       console.error('加载场次详情失败:', error)
-      const cached = cache.get<ShowDetail>(`musical_show_${showId}`, true)
-      if (cached) setShow(cached)
+      if (!show) {
+        const cached = cache.get<ShowDetail>(`musical_show_${showId}`, true)
+        if (cached) setShow(cached)
+      }
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [show])
 
   useEffect(() => {
     if (id) loadShow(id)
