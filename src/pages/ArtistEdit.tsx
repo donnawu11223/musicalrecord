@@ -12,6 +12,7 @@ export default function ArtistEditPage() {
   const [formData, setFormData] = useState({
     name: ''
   })
+  const [batchText, setBatchText] = useState('')
   const [submitting, setSubmitting] = useState(false)
 
   useEffect(() => {
@@ -36,56 +37,126 @@ export default function ArtistEditPage() {
     navigate(-1)
   }
 
+  // 将批量文本拆分为演员名称数组
+  const parseNames = (text: string): string[] => {
+    return text
+      .split(/[,，\n]/)
+      .map(name => name.trim())
+      .filter(name => name.length > 0)
+  }
+
+  // 去除数组内重复名称，保留首次出现
+  const dedupeNames = (names: string[]): string[] => {
+    const seen = new Set<string>()
+    return names.filter(name => {
+      if (seen.has(name)) return false
+      seen.add(name)
+      return true
+    })
+  }
+
   const handleSubmit = async () => {
     if (submitting) return
-    // 校验演员名称不为空
-    if (!formData.name.trim()) {
-      showToast({ content: '请填写演员名称', icon: 'fail' })
-      return
-    }
 
-    // 校验演员名称不重复
-    try {
-      const existingArtists = await getArtistNames()
-      const isDuplicate = existingArtists.some(a =>
-        a.name === formData.name.trim() && a.id !== id
-      )
-      if (isDuplicate) {
-        showToast({ content: '演员名称不可重复', icon: 'fail' })
+    if (isEdit) {
+      // 编辑模式：单一名称校验与保存
+      if (!formData.name.trim()) {
+        showToast({ content: '请填写演员名称', icon: 'fail' })
         return
       }
-    } catch (error) {
-      console.error('检查演员名称失败:', error)
-    }
 
-    setSubmitting(true)
-    try {
-      const artistData = {
-        name: formData.name.trim()
+      try {
+        const existingArtists = await getArtistNames()
+        const isDuplicate = existingArtists.some(a =>
+          a.name === formData.name.trim() && a.id !== id
+        )
+        if (isDuplicate) {
+          showToast({ content: '演员名称不可重复', icon: 'fail' })
+          return
+        }
+      } catch (error) {
+        console.error('检查演员名称失败:', error)
       }
 
-      if (isEdit && id) {
-        await updateArtist(id, artistData)
+      setSubmitting(true)
+      try {
+        await updateArtist(id!, { name: formData.name.trim() })
         showToast({ content: '保存成功', icon: 'success' })
-      } else {
-        await createArtist(artistData)
-        showToast({ content: '创建成功', icon: 'success' })
+
+        cache.remove(`musical_artist_${id}`)
+        Object.keys(localStorage).forEach(key => {
+          if (key.startsWith('musical_artists_cache')) cache.remove(key)
+          if (key.startsWith('musical_shows_cache')) cache.remove(key)
+          if (key.startsWith('musical_musicals_cache')) cache.remove(key)
+        })
+
+        navigate(-1)
+      } catch (error) {
+        console.error('保存失败:', error)
+        showToast({ content: '保存失败', icon: 'fail' })
+      } finally {
+        setSubmitting(false)
+      }
+    } else {
+      // 新增模式：批量录入
+      const names = dedupeNames(parseNames(batchText))
+      if (names.length === 0) {
+        showToast({ content: '请填写演员名称', icon: 'fail' })
+        return
       }
 
-      // 清除缓存
-      if (id) cache.remove(`musical_artist_${id}`)
-      Object.keys(localStorage).forEach(key => {
-        if (key.startsWith('musical_artists_cache')) cache.remove(key)
-        if (key.startsWith('musical_shows_cache')) cache.remove(key)
-        if (key.startsWith('musical_musicals_cache')) cache.remove(key)
-      })
+      setSubmitting(true)
+      try {
+        const existingArtists = await getArtistNames()
+        const existingNameSet = new Set(existingArtists.map(a => a.name))
 
-      navigate(-1)
-    } catch (error) {
-      console.error('保存失败:', error)
-      showToast({ content: '保存失败', icon: 'fail' })
-    } finally {
-      setSubmitting(false)
+        const newNames: string[] = []
+        const duplicateNames: string[] = []
+
+        names.forEach(name => {
+          if (existingNameSet.has(name)) {
+            duplicateNames.push(name)
+          } else {
+            newNames.push(name)
+          }
+        })
+
+        // 依次创建不重复的演员
+        let successCount = 0
+        for (const name of newNames) {
+          try {
+            await createArtist({ name })
+            successCount++
+          } catch (error) {
+            console.error(`创建演员「${name}」失败:`, error)
+            duplicateNames.push(name)
+          }
+        }
+
+        // 提示结果
+        if (duplicateNames.length > 0) {
+          showToast({ content: `${duplicateNames.join('、')} 名称重复，未新增`, icon: 'fail' })
+        }
+        if (successCount > 0) {
+          showToast({ content: `成功新增 ${successCount} 位演员`, icon: 'success' })
+        }
+
+        // 清除缓存
+        Object.keys(localStorage).forEach(key => {
+          if (key.startsWith('musical_artists_cache')) cache.remove(key)
+          if (key.startsWith('musical_shows_cache')) cache.remove(key)
+          if (key.startsWith('musical_musicals_cache')) cache.remove(key)
+        })
+
+        if (successCount > 0) {
+          navigate(-1)
+        }
+      } catch (error) {
+        console.error('批量创建失败:', error)
+        showToast({ content: '创建失败', icon: 'fail' })
+      } finally {
+        setSubmitting(false)
+      }
     }
   }
 
@@ -104,21 +175,37 @@ export default function ArtistEditPage() {
 
       {/* Main Content */}
       <main style={styles.content}>
-        {/* Form Section */}
         <section style={styles.form}>
-          <div style={styles.formItem}>
-            <label style={styles.label}>演员名称</label>
-            <input
-              type="text"
-              style={{
-                ...styles.input,
-                color: formData.name ? '#1a1c1a' : '#707979'
-              }}
-              placeholder="请输入演员全名"
-              value={formData.name}
-              onChange={e => setFormData({ ...formData, name: e.target.value })}
-            />
-          </div>
+          {isEdit ? (
+            <div style={styles.formItem}>
+              <label style={styles.label}>演员名称</label>
+              <input
+                type="text"
+                style={{
+                  ...styles.input,
+                  color: formData.name ? '#1a1c1a' : '#707979'
+                }}
+                placeholder="请输入演员全名"
+                value={formData.name}
+                onChange={e => setFormData({ ...formData, name: e.target.value })}
+              />
+            </div>
+          ) : (
+            <div style={styles.formItem}>
+              <label style={styles.label}>演员名称</label>
+              <textarea
+                style={{
+                  ...styles.input,
+                  ...styles.textarea,
+                  color: batchText ? '#1a1c1a' : '#707979'
+                }}
+                placeholder="请输入演员名称，多个名称用逗号或换行分隔"
+                value={batchText}
+                onChange={e => setBatchText(e.target.value)}
+              />
+              <span style={styles.hint}>支持逗号或换行分隔，自动过滤重复名称</span>
+            </div>
+          )}
         </section>
       </main>
     </div>
@@ -196,5 +283,16 @@ const styles: Record<string, React.CSSProperties> = {
     backgroundColor: '#ffffff',
     outline: 'none',
     transition: 'border-color 0.2s'
+  },
+  textarea: {
+    minHeight: '160px',
+    resize: 'vertical',
+    lineHeight: '1.6',
+    fontFamily: 'inherit'
+  },
+  hint: {
+    fontSize: '12px',
+    color: '#999',
+    padding: '0 4px'
   }
 }
