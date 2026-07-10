@@ -270,15 +270,12 @@ export default function ShowDetailPage() {
             </h2>
             <div style={styles.actorList}>
               {show.actor_reviews.map(review => (
-                <div key={review.id} style={styles.actorCard}>
+                <div key={review.id} style={styles.actorCard} onClick={() => navigate(`/artists/${review.artist.id}`)}>
                   <div style={styles.actorHeader}>
                     <div style={styles.actorInfo}>
-                      <button
-                        style={styles.actorNameBtn}
-                        onClick={() => navigate(`/artists/${review.artist.id}`)}
-                      >
+                      <span style={styles.actorNameBtn}>
                         {review.artist.name}
-                      </button>
+                      </span>
                       {review.role && <span style={styles.roleText}>饰 {review.role}</span>}
                     </div>
                     <span style={{
@@ -528,7 +525,9 @@ const styles: Record<string, React.CSSProperties> = {
     padding: '16px',
     borderRadius: '8px',
     boxShadow: '0 8px 24px rgba(53, 102, 104, 0.04)',
-    border: '1px solid rgba(192, 200, 200, 0.3)'
+    border: '1px solid rgba(192, 200, 200, 0.3)',
+    cursor: 'pointer',
+    transition: 'opacity 0.2s'
   },
   actorHeader: {
     display: 'flex',
@@ -544,14 +543,12 @@ const styles: Record<string, React.CSSProperties> = {
     gap: '8px'
   },
   actorNameBtn: {
-    backgroundColor: '#b8e2d6',
-    color: '#3f665c',
-    fontSize: '16px',
+    fontSize: '14px',
     fontWeight: 600,
-    padding: '4px 12px',
-    borderRadius: '5px',
-    border: 'none',
-    cursor: 'pointer'
+    color: '#1a1c1a',
+    whiteSpace: 'nowrap',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis'
   },
   roleText: {
     fontSize: '14px',

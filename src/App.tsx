@@ -1,6 +1,4 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
-import { ConfigProvider } from 'antd'
-import zhCN from 'antd/locale/zh_CN'
 import MainLayout from './layouts/MainLayout'
 import Shows from './pages/Shows'
 import ShowDetail from './pages/ShowDetail'
@@ -16,28 +14,26 @@ import ScrollToTop from './components/ScrollToTop'
 
 function App() {
   return (
-    <ConfigProvider locale={zhCN}>
-      <BrowserRouter>
-        <ScrollToTop />
-        <Routes>
-          <Route path="/" element={<MainLayout />}>
-            <Route index element={<Shows />} />
-            <Route path="shows/:id" element={<ShowDetail />} />
-            <Route path="shows/:id/edit" element={<ShowEdit />} />
-            <Route path="shows/new" element={<ShowEdit />} />
-            <Route path="musicals" element={<Musicals />} />
-            <Route path="musicals/:id" element={<MusicalDetail />} />
-            <Route path="musicals/:id/edit" element={<MusicalEdit />} />
-            <Route path="musicals/new" element={<MusicalEdit />} />
-            <Route path="artists" element={<Artists />} />
-            <Route path="artists/:id" element={<ArtistDetail />} />
-            <Route path="artists/:id/edit" element={<ArtistEdit />} />
-            <Route path="artists/new" element={<ArtistEdit />} />
-          </Route>
-        </Routes>
-      </BrowserRouter>
+    <BrowserRouter>
+      <ScrollToTop />
+      <Routes>
+        <Route path="/" element={<MainLayout />}>
+          <Route index element={<Shows />} />
+          <Route path="shows/:id" element={<ShowDetail />} />
+          <Route path="shows/:id/edit" element={<ShowEdit />} />
+          <Route path="shows/new" element={<ShowEdit />} />
+          <Route path="musicals" element={<Musicals />} />
+          <Route path="musicals/:id" element={<MusicalDetail />} />
+          <Route path="musicals/:id/edit" element={<MusicalEdit />} />
+          <Route path="musicals/new" element={<MusicalEdit />} />
+          <Route path="artists" element={<Artists />} />
+          <Route path="artists/:id" element={<ArtistDetail />} />
+          <Route path="artists/:id/edit" element={<ArtistEdit />} />
+          <Route path="artists/new" element={<ArtistEdit />} />
+        </Route>
+      </Routes>
       <ToastContainer />
-    </ConfigProvider>
+    </BrowserRouter>
   )
 }
 

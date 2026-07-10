@@ -5,7 +5,7 @@ import { getArtists } from '../services/artist'
 import { cache } from '../hooks/useCache'
 import type { Artist } from '../types'
 
-type ArtistCard = Artist & { watch_count: number; avg_score: number }
+type ArtistCard = Artist & { watch_count: number; avg_score: number; avg_order: number }
 
 const CACHE_KEY = 'musical_artists_cache'
 
@@ -38,7 +38,8 @@ export default function Artists() {
   const sortArtists = (data: ArtistCard[]) => {
     return [...data].sort((a, b) => {
       if (b.watch_count !== a.watch_count) return b.watch_count - a.watch_count
-      return b.avg_score - a.avg_score
+      if (b.avg_score !== a.avg_score) return b.avg_score - a.avg_score
+      return a.avg_order - b.avg_order
     })
   }
 

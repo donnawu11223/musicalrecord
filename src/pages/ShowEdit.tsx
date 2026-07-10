@@ -60,6 +60,9 @@ export default function ShowEditPage() {
   const [showActorTypeDropdown, setShowActorTypeDropdown] = useState(false)
   const [actorTypeDropdownIndex, setActorTypeDropdownIndex] = useState<number | null>(null)
   const [actorTypeDropdownPos, setActorTypeDropdownPos] = useState({ top: 0, left: 0, width: 0 })
+  const [showBatchPaste, setShowBatchPaste] = useState(false)
+  const [batchPasteText, setBatchPasteText] = useState('')
+  const [batchParseResult, setBatchParseResult] = useState<{ actor_type: string; role: string; name: string; review: string; matched: boolean }[]>([])
   const [showDateTimePicker, setShowDateTimePicker] = useState(false)
   const [dateTimePickerPos, setDateTimePickerPos] = useState({ top: 0, left: 0, width: 0 })
   const [selectedDate, setSelectedDate] = useState(() => {
@@ -460,6 +463,45 @@ export default function ShowEditPage() {
     )
   }
 
+  // 批量粘贴解析：格式为 主演/群演\t角色\t姓名\t评价（每行一个演员）
+  const handleBatchParse = (text: string) => {
+    setBatchPasteText(text)
+    if (!text.trim()) {
+      setBatchParseResult([])
+      return
+    }
+    const lines = text.trim().split('\n').filter(l => l.trim())
+    const results = lines.map(line => {
+      const cols = line.split('\t')
+      const actor_type = cols[0]?.trim() || ''
+      const role = cols[1]?.trim() || ''
+      const name = cols[2]?.trim() || ''
+      const review = cols[3]?.trim() || ''
+      const matched = artistOptions.some(a => a.name === name)
+      return { actor_type, role, name, review, matched }
+    })
+    setBatchParseResult(results)
+  }
+
+  const handleBatchConfirm = () => {
+    if (batchParseResult.length === 0) return
+    const newReviews: ActorReviewInput[] = batchParseResult.map(item => {
+      const artist = artistOptions.find(a => a.name === item.name)
+      const actorType: ActorType = item.actor_type === '群演' ? '群演' : '主演'
+      return {
+        artist_id: artist?.id || '',
+        artist_name: item.name,
+        actor_type: actorType,
+        role: item.role,
+        review: item.review
+      }
+    })
+    setActorReviews(newReviews)
+    setShowBatchPaste(false)
+    setBatchPasteText('')
+    setBatchParseResult([])
+  }
+
   const handleSubmit = async () => {
     if (submitting) return
     // 校验剧目不为空
@@ -671,7 +713,13 @@ export default function ShowEditPage() {
 
         {/* 演员评价 */}
         <section style={styles.section}>
-          <label style={styles.label}>演员评价</label>
+          <div style={styles.sectionHeader}>
+            <label style={styles.label}>演员评价</label>
+            <button style={styles.batchBtn} onClick={() => setShowBatchPaste(true)}>
+              <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>content_paste</span>
+              批量粘贴
+            </button>
+          </div>
           <div style={styles.actorSection}>
             {actorReviews.map((review, index) => (
               <div key={index} style={styles.actorCard}>
@@ -863,6 +911,59 @@ export default function ShowEditPage() {
           setShowMinuteDropdown(false)
         }}>
           {renderDateTimePicker()}
+        </div>
+      )}
+
+      {/* 批量粘贴弹窗 */}
+      {showBatchPaste && (
+        <div style={styles.overlay} onClick={() => setShowBatchPaste(false)}>
+          <div style={styles.batchModal} onClick={e => e.stopPropagation()}>
+            <div style={styles.batchModalHeader}>
+              <span style={styles.batchModalTitle}>批量粘贴演员</span>
+              <button style={styles.batchModalClose} onClick={() => { setShowBatchPaste(false); setBatchPasteText(''); setBatchParseResult([]) }}>
+                <span className="material-symbols-outlined">close</span>
+              </button>
+            </div>
+            <p style={styles.batchHint}>从 Excel 复制后粘贴，列顺序：<strong>主演/群演 → 角色 → 姓名 → 评价</strong></p>
+            <textarea
+              style={styles.batchTextarea}
+              placeholder={'主演\t莎翁\t张三\t表现很好\n群演\t路人\t李四\t'}
+              value={batchPasteText}
+              onChange={e => handleBatchParse(e.target.value)}
+              autoFocus
+            />
+            {batchParseResult.length > 0 && (
+              <div style={styles.batchPreview}>
+                <div style={styles.batchPreviewTitle}>解析预览（{batchParseResult.length} 条）</div>
+                <div style={styles.batchPreviewList}>
+                  {batchParseResult.map((item, i) => (
+                    <div key={i} style={styles.batchPreviewItem}>
+                      <span style={{ ...styles.batchPreviewTag, backgroundColor: item.actor_type === '群演' ? 'rgba(211, 203, 255, 0.3)' : 'rgba(168, 218, 220, 0.3)', color: item.actor_type === '群演' ? '#473d81' : '#1a4e50' }}>
+                        {item.actor_type || '主演'}
+                      </span>
+                      <span style={styles.batchPreviewName}>
+                        {item.name || '—'}
+                        {!item.matched && item.name && (
+                          <span style={styles.batchPreviewWarn} title="演员库中未找到此人，将以无ID状态保存">⚠</span>
+                        )}
+                      </span>
+                      <span style={styles.batchPreviewRole}>{item.role || '—'}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            <div style={styles.batchModalFooter}>
+              <button style={styles.batchCancelBtn} onClick={() => { setShowBatchPaste(false); setBatchPasteText(''); setBatchParseResult([]) }}>取消</button>
+              <button
+                style={{ ...styles.batchConfirmBtn, opacity: batchParseResult.length === 0 ? 0.4 : 1 }}
+                disabled={batchParseResult.length === 0}
+                onClick={handleBatchConfirm}
+              >
+                填入 {batchParseResult.length > 0 ? `${batchParseResult.length} 条` : ''}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
@@ -1320,5 +1421,155 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: '14px',
     color: '#707979',
     textAlign: 'center'
+  },
+  sectionHeader: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: '0 4px'
+  },
+  batchBtn: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '4px',
+    padding: '6px 12px',
+    border: '1px solid #356668',
+    borderRadius: '8px',
+    backgroundColor: 'transparent',
+    color: '#356668',
+    fontSize: '12px',
+    fontWeight: 600,
+    cursor: 'pointer'
+  },
+  batchModal: {
+    position: 'fixed',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: '#faf8f7',
+    borderRadius: '20px 20px 0 0',
+    boxShadow: '0 -8px 32px rgba(53, 102, 104, 0.15)',
+    padding: '20px 16px',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '12px',
+    maxHeight: '85vh',
+    overflowY: 'auto',
+    zIndex: 101
+  },
+  batchModalHeader: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center'
+  },
+  batchModalTitle: {
+    fontSize: '16px',
+    fontWeight: 600,
+    color: '#1a1c1a'
+  },
+  batchModalClose: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: '32px',
+    height: '32px',
+    border: 'none',
+    backgroundColor: 'transparent',
+    color: '#707979',
+    cursor: 'pointer',
+    borderRadius: '8px'
+  },
+  batchHint: {
+    fontSize: '12px',
+    color: '#707979',
+    margin: 0,
+    lineHeight: 1.5
+  },
+  batchTextarea: {
+    width: '100%',
+    padding: '12px 14px',
+    border: '1px solid #e3e2e0',
+    borderRadius: '12px',
+    fontSize: '13px',
+    backgroundColor: '#ffffff',
+    outline: 'none',
+    resize: 'none',
+    minHeight: '120px',
+    lineHeight: 1.6,
+    fontFamily: 'monospace'
+  },
+  batchPreview: {
+    backgroundColor: '#ffffff',
+    borderRadius: '12px',
+    border: '1px solid #e3e2e0',
+    overflow: 'hidden'
+  },
+  batchPreviewTitle: {
+    fontSize: '12px',
+    fontWeight: 600,
+    color: '#707979',
+    padding: '10px 14px',
+    borderBottom: '1px solid rgba(192, 200, 200, 0.3)'
+  },
+  batchPreviewList: {
+    display: 'flex',
+    flexDirection: 'column'
+  },
+  batchPreviewItem: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+    padding: '10px 14px',
+    borderBottom: '1px solid rgba(192, 200, 200, 0.2)',
+    fontSize: '13px'
+  },
+  batchPreviewTag: {
+    padding: '2px 8px',
+    borderRadius: '4px',
+    fontSize: '11px',
+    fontWeight: 600,
+    flexShrink: 0
+  },
+  batchPreviewName: {
+    fontWeight: 600,
+    color: '#1a1c1a',
+    flex: 1
+  },
+  batchPreviewWarn: {
+    marginLeft: '4px',
+    color: '#e07a00',
+    cursor: 'help'
+  },
+  batchPreviewRole: {
+    color: '#707979',
+    fontSize: '12px',
+    flexShrink: 0
+  },
+  batchModalFooter: {
+    display: 'flex',
+    gap: '12px',
+    paddingTop: '4px'
+  },
+  batchCancelBtn: {
+    flex: 1,
+    padding: '12px',
+    border: '1px solid #e3e2e0',
+    borderRadius: '12px',
+    backgroundColor: '#ffffff',
+    color: '#1a1c1a',
+    fontSize: '14px',
+    fontWeight: 500,
+    cursor: 'pointer'
+  },
+  batchConfirmBtn: {
+    flex: 2,
+    padding: '12px',
+    border: 'none',
+    borderRadius: '12px',
+    backgroundColor: '#356668',
+    color: '#ffffff',
+    fontSize: '14px',
+    fontWeight: 600,
+    cursor: 'pointer'
   }
 }

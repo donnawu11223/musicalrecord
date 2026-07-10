@@ -12,12 +12,8 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "@ant-design/icons": "^6.2.2",
     "@supabase/supabase-js": "^2.105.3",
-    "antd": "^6.3.7",
     "antd-mobile": "^5.42.3",
-    "antd-mobile-icons": "^0.3.0",
-    "iconv-lite": "^0.7.2",
     "react": "^19.2.6",
     "react-dom": "^19.2.6",
     "react-router-dom": "^7.15.0"

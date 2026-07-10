@@ -3,7 +3,7 @@ import type { Artist, ArtistDetail } from '../types'
 import { calcMultiShowAvg } from '../lib/score'
 
 // 获取演员列表（带统计信息）
-export async function getArtists(): Promise<(Artist & { watch_count: number; avg_score: number })[]> {
+export async function getArtists(): Promise<(Artist & { watch_count: number; avg_score: number; avg_order: number })[]> {
   const { data, error } = await supabase
     .from('artist')
     .select('*')
@@ -11,11 +11,13 @@ export async function getArtists(): Promise<(Artist & { watch_count: number; avg
 
   if (error) throw error
 
-  // 获取所有场次和演员评价
+  // 获取所有场次和演员评价（只统计主演）
   const { data: actorReviews, error: reviewError } = await supabase
     .from('actor_review')
     .select(`
       artist_id,
+      actor_type,
+      actor_order,
       show:show(
         plot_score,
         visual_score,
@@ -24,11 +26,13 @@ export async function getArtists(): Promise<(Artist & { watch_count: number; avg
         singing_score
       )
     `)
+    .eq('actor_type', '主演')
 
   if (reviewError) throw reviewError
 
-  // 按演员ID分组场次
+  // 按演员ID分组场次和order
   const artistShows = new Map<string, any[]>()
+  const artistOrders = new Map<string, number[]>()
   actorReviews?.forEach((review: any) => {
     const artistId = review.artist_id
     const show = review.show
@@ -40,16 +44,29 @@ export async function getArtists(): Promise<(Artist & { watch_count: number; avg
         artistShows.set(artistId, [show])
       }
     }
+    if (review.actor_order != null) {
+      const orders = artistOrders.get(artistId)
+      if (orders) {
+        orders.push(review.actor_order)
+      } else {
+        artistOrders.set(artistId, [review.actor_order])
+      }
+    }
   })
 
   return (data || []).map(artist => {
     const shows = artistShows.get(artist.id) || []
     const watchCount = shows.length
     const avgScore = calcMultiShowAvg(shows)
+    const orders = artistOrders.get(artist.id) || []
+    const avgOrder = orders.length > 0
+      ? orders.reduce((sum, o) => sum + o, 0) / orders.length
+      : Infinity
     return {
       ...artist,
       watch_count: watchCount,
-      avg_score: avgScore
+      avg_score: avgScore,
+      avg_order: avgOrder
     }
   })
 }
@@ -81,8 +98,9 @@ export async function getArtistById(id: string): Promise<ArtistDetail> {
 
   if (reviewError) throw reviewError
 
-  // 计算统计信息
-  const shows = actorReviews?.map((r: any) => r.show).filter(Boolean) || []
+  // 计算统计信息（只统计主演的场次）
+  const leadReviews = actorReviews?.filter((r: any) => r.actor_type === '主演') || []
+  const shows = leadReviews.map((r: any) => r.show).filter(Boolean)
   const watchCount = shows.length
   const avgScore = calcMultiShowAvg(shows)
 
