@@ -1,4 +1,4 @@
-import { supabase } from '../lib/supabase'
+import { supabase, getUserId } from '../lib/supabase'
 import type { Musical, MusicalCard, MusicalType } from '../types'
 import { hasAnyScore, calcShowAvg, calcMultiShowAvg } from '../lib/score'
 
@@ -14,56 +14,45 @@ export async function getMusicals(type?: MusicalType): Promise<MusicalCard[]> {
   }
 
   const { data: musicals, error: musicalError } = await query
-
   if (musicalError) throw musicalError
 
   // 获取所有场次数据
   const { data: shows, error: showsError } = await supabase
     .from('show')
-    .select('musical_id, plot_score, visual_score, acting_score, script_score, singing_score')
+    .select('musical_name, plot_score, visual_score, acting_score, script_score, singing_score')
 
   if (showsError) throw showsError
 
-  // 按剧目ID分组统计
+  // 按剧目名称分组统计
   const showStats = new Map<string, { count: number; totalScore: number }>()
   shows?.forEach(show => {
-    // 跳过没有评分的场次
     if (!hasAnyScore(show)) return
-
-    const existing = showStats.get(show.musical_id)
+    const existing = showStats.get(show.musical_name)
     const avg = calcShowAvg(show)
     if (existing) {
       existing.count++
       existing.totalScore += avg
     } else {
-      showStats.set(show.musical_id, { count: 1, totalScore: avg })
+      showStats.set(show.musical_name, { count: 1, totalScore: avg })
     }
   })
 
-  // 组装结果
   return (musicals || []).map(musical => {
-    const stats = showStats.get(musical.id)
+    const stats = showStats.get(musical.name)
     const watchCount = stats?.count || 0
-    // 均分 * 2 保留1位小数
     const avgScore = watchCount > 0
       ? Math.round((stats!.totalScore / watchCount) * 2 * 10) / 10
       : 0
-
-    return {
-      ...musical,
-      watch_count: watchCount,
-      avg_score: avgScore
-    }
+    return { ...musical, watch_count: watchCount, avg_score: avgScore }
   })
 }
 
 // 获取剧目详情
-export async function getMusicalById(id: string) {
-  // 获取剧目基本信息
+export async function getMusicalByName(name: string) {
   const { data: musical, error: musicalError } = await supabase
     .from('musical')
     .select('*')
-    .eq('id', id)
+    .eq('name', name)
     .single()
 
   if (musicalError) throw musicalError
@@ -73,45 +62,32 @@ export async function getMusicalById(id: string) {
   const { data: shows, error: showsError } = await supabase
     .from('show')
     .select('*')
-    .eq('musical_id', id)
+    .eq('musical_name', name)
     .order('show_time', { ascending: false })
 
   if (showsError) throw showsError
 
-  // 计算统计信息
   const watchCount = shows?.length || 0
   const avgScore = calcMultiShowAvg(shows || [])
 
   // 获取演员统计
   const { data: actorReviews, error: actorError } = await supabase
     .from('actor_review')
-    .select(`
-      artist_id,
-      artist:artist(id, name)
-    `)
+    .select('artist_name')
     .in('show_id', shows?.map(s => s.id) || [])
 
   if (actorError) throw actorError
 
-  // 统计演员参演次数
-  const artistStats = new Map<string, { artist_id: string; artist_name: string; count: number }>()
+  const artistStats = new Map<string, { artist_name: string; count: number }>()
   actorReviews?.forEach((review: any) => {
-    const artist = review.artist
-    if (artist) {
-      const existing = artistStats.get(artist.id)
-      if (existing) {
-        existing.count++
-      } else {
-        artistStats.set(artist.id, {
-          artist_id: artist.id,
-          artist_name: artist.name,
-          count: 1
-        })
-      }
+    const existing = artistStats.get(review.artist_name)
+    if (existing) {
+      existing.count++
+    } else {
+      artistStats.set(review.artist_name, { artist_name: review.artist_name, count: 1 })
     }
   })
 
-  // 场次带评分
   const showsWithScore = shows?.map(s => ({
     ...s,
     avg_score: hasAnyScore(s) ? Math.round(calcShowAvg(s) * 2 * 10) / 10 : 0
@@ -127,10 +103,11 @@ export async function getMusicalById(id: string) {
 }
 
 // 创建剧目
-export async function createMusical(musical: Omit<Musical, 'id' | 'created_at' | 'updated_at'>) {
+export async function createMusical(musical: Pick<Musical, 'name' | 'type' | 'brand' | 'plot'>) {
+  const user_id = await getUserId()
   const { data, error } = await supabase
     .from('musical')
-    .insert(musical)
+    .insert({ ...musical, user_id })
     .select()
     .single()
 
@@ -139,11 +116,11 @@ export async function createMusical(musical: Omit<Musical, 'id' | 'created_at' |
 }
 
 // 更新剧目
-export async function updateMusical(id: string, musical: Partial<Omit<Musical, 'id' | 'created_at' | 'updated_at'>>) {
+export async function updateMusical(name: string, musical: Partial<Pick<Musical, 'name' | 'type' | 'brand' | 'plot'>>) {
   const { data, error } = await supabase
     .from('musical')
     .update(musical)
-    .eq('id', id)
+    .eq('name', name)
     .select()
     .single()
 
@@ -151,17 +128,16 @@ export async function updateMusical(id: string, musical: Partial<Omit<Musical, '
   return data
 }
 
-// 删除剧目（需先检查是否有关联场次）
-export async function deleteMusical(id: string) {
+// 删除剧目
+export async function deleteMusical(name: string) {
   // 检查是否有关联场次
   const { data: shows, error: checkError } = await supabase
     .from('show')
     .select('id')
-    .eq('musical_id', id)
+    .eq('musical_name', name)
     .limit(1)
 
   if (checkError) throw checkError
-
   if (shows && shows.length > 0) {
     throw new Error('该剧目有关联的场次记录，无法删除')
   }
@@ -169,16 +145,16 @@ export async function deleteMusical(id: string) {
   const { error } = await supabase
     .from('musical')
     .delete()
-    .eq('id', id)
+    .eq('name', name)
 
   if (error) throw error
 }
 
 // 获取所有剧目名称（用于下拉选择）
-export async function getMusicalNames(): Promise<{ id: string; name: string; type: MusicalType }[]> {
+export async function getMusicalNames(): Promise<{ name: string; type: MusicalType }[]> {
   const { data, error } = await supabase
     .from('musical')
-    .select('id, name, type')
+    .select('name, type')
     .order('name', { ascending: true })
 
   if (error) throw error

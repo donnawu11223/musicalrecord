@@ -34,7 +34,6 @@ export default function Musicals() {
   const [filterVisible, setFilterVisible] = useState(false)
   const [filterExpanded, setFilterExpanded] = useState<'type' | 'name' | null>(null)
   const [selectedType, setSelectedType] = useState<MusicalType | ''>('')
-  const [selectedMusicalId, setSelectedMusicalId] = useState<string>('')
   const [selectedMusicalName, setSelectedMusicalName] = useState<string>('')
   const [nameSearch, setNameSearch] = useState('')
 
@@ -79,8 +78,8 @@ export default function Musicals() {
     await loadMusicals(true)
   }
 
-  const handleCardClick = (id: string) => {
-    navigate(`/musicals/${id}`)
+  const handleCardClick = (name: string) => {
+    navigate(`/musicals/${encodeURIComponent(name)}`)
   }
 
   const handleAddClick = () => {
@@ -95,14 +94,12 @@ export default function Musicals() {
 
   const handleTypeSelect = (type: MusicalType | '') => {
     setSelectedType(type)
-    setSelectedMusicalId('')
     setSelectedMusicalName('')
     setFilterVisible(false)
     setFilterExpanded(null)
   }
 
   const handleMusicalSelect = (musical: MusicalCard) => {
-    setSelectedMusicalId(musical.id)
     setSelectedMusicalName(musical.name)
     setSelectedType('')
     setFilterVisible(false)
@@ -110,7 +107,6 @@ export default function Musicals() {
   }
 
   const handleClearNameFilter = () => {
-    setSelectedMusicalId('')
     setSelectedMusicalName('')
     setFilterVisible(false)
     setFilterExpanded(null)
@@ -190,7 +186,7 @@ export default function Musicals() {
                   <div
                     style={{
                       ...styles.filterOption,
-                      ...(!selectedMusicalId ? styles.filterOptionActive : {})
+                      ...(!selectedMusicalName ? styles.filterOptionActive : {})
                     }}
                     onClick={handleClearNameFilter}
                   >
@@ -198,10 +194,10 @@ export default function Musicals() {
                   </div>
                   {filteredMusicalsByName.map(musical => (
                     <div
-                      key={musical.id}
+                      key={musical.name}
                       style={{
                         ...styles.filterOption,
-                        ...(selectedMusicalId === musical.id ? styles.filterOptionActive : {})
+                        ...(selectedMusicalName === musical.name ? styles.filterOptionActive : {})
                       }}
                       onClick={() => handleMusicalSelect(musical)}
                     >
@@ -229,20 +225,20 @@ export default function Musicals() {
         >
         {loading && !musicals.length ? (
           <div style={styles.loading}>加载中...</div>
-        ) : (selectedMusicalId ? musicals.filter(m => m.id === selectedMusicalId) : musicals).length === 0 ? (
+        ) : (selectedMusicalName ? musicals.filter(m => m.name === selectedMusicalName) : musicals).length === 0 ? (
           <Empty description="暂无剧目记录" />
         ) : (
           <div style={styles.grid}>
-            {(selectedMusicalId ? musicals.filter(m => m.id === selectedMusicalId) : musicals).map(musical => {
+            {(selectedMusicalName ? musicals.filter(m => m.name === selectedMusicalName) : musicals).map(musical => {
               const color = getTypeColor(musical.type)
               return (
                 <article
-                  key={musical.id}
+                  key={musical.name}
                   style={{
                     ...styles.card,
                     backgroundColor: color.bg
                   }}
-                  onClick={() => handleCardClick(musical.id)}
+                  onClick={() => handleCardClick(musical.name)}
                 >
                   {/* 左侧内容区 */}
                   <div style={styles.cardMain}>

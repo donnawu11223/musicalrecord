@@ -1,13 +1,14 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { showToast } from '../components/Toast'
-import { getArtistById, createArtist, updateArtist, getArtistNames } from '../services/artist'
+import { getArtistByName, createArtist, updateArtist, getArtistNames } from '../services/artist'
 import { cache } from '../hooks/useCache'
 
 export default function ArtistEditPage() {
-  const { id } = useParams<{ id: string }>()
+  const { name: routeName } = useParams<{ name: string }>()
   const navigate = useNavigate()
-  const isEdit = !!id
+  const decodedName = routeName ? decodeURIComponent(routeName) : ''
+  const isEdit = !!decodedName
 
   const [formData, setFormData] = useState({
     name: ''
@@ -16,14 +17,14 @@ export default function ArtistEditPage() {
   const [submitting, setSubmitting] = useState(false)
 
   useEffect(() => {
-    if (isEdit && id) {
-      loadArtist(id)
+    if (isEdit && decodedName) {
+      loadArtist(decodedName)
     }
-  }, [id, isEdit])
+  }, [decodedName, isEdit])
 
-  const loadArtist = async (artistId: string) => {
+  const loadArtist = async (artistName: string) => {
     try {
-      const data = await getArtistById(artistId)
+      const data = await getArtistByName(artistName)
       setFormData({
         name: data.name
       })
@@ -68,7 +69,7 @@ export default function ArtistEditPage() {
       try {
         const existingArtists = await getArtistNames()
         const isDuplicate = existingArtists.some(a =>
-          a.name === formData.name.trim() && a.id !== id
+          a.name === formData.name.trim() && a.name !== decodedName
         )
         if (isDuplicate) {
           showToast({ content: '演员名称不可重复', icon: 'fail' })
@@ -80,10 +81,10 @@ export default function ArtistEditPage() {
 
       setSubmitting(true)
       try {
-        await updateArtist(id!, { name: formData.name.trim() })
+        await updateArtist(decodedName, { name: formData.name.trim() })
         showToast({ content: '保存成功', icon: 'success' })
 
-        cache.remove(`musical_artist_${id}`)
+        cache.remove(`musical_artist_${decodedName}`)
         Object.keys(localStorage).forEach(key => {
           if (key.startsWith('musical_artists_cache')) cache.remove(key)
           if (key.startsWith('musical_shows_cache')) cache.remove(key)

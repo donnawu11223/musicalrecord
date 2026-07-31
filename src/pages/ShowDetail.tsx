@@ -182,7 +182,7 @@ export default function ShowDetailPage() {
         {/* 场次信息卡片 */}
         <section style={styles.infoCard}>
           <div style={styles.infoContent}>
-            <button style={styles.nameButton} onClick={() => navigate(`/musicals/${show.musical.id}`)}>{show.musical.name}</button>
+            <button style={styles.nameButton} onClick={() => navigate(`/musicals/${encodeURIComponent(show.musical.name)}`)}>{show.musical.name}</button>
             <div style={styles.infoList}>
               <div style={styles.infoRow}>
                 <span className="material-symbols-outlined" style={styles.infoIcon}>calendar_today</span>
@@ -270,7 +270,7 @@ export default function ShowDetailPage() {
             </h2>
             <div style={styles.actorList}>
               {show.actor_reviews.map(review => (
-                <div key={review.id} style={styles.actorCard} onClick={() => navigate(`/artists/${review.artist.id}`)}>
+                <div key={review.id} style={styles.actorCard} onClick={() => navigate(`/artists/${encodeURIComponent(review.artist.name)}`)}>
                   <div style={styles.actorHeader}>
                     <div style={styles.actorInfo}>
                       <span style={styles.actorNameBtn}>

@@ -1,5 +1,5 @@
-import { supabase } from '../lib/supabase'
-import type { Show, ShowCard, ShowDetail, MusicalType, ActorType, ActorReview } from '../types'
+import { supabase, getUserId } from '../lib/supabase'
+import type { Show, ShowCard, ShowDetail, MusicalType, ActorType } from '../types'
 
 // 获取场次列表（带剧目信息）
 export async function getShows(filters?: { year?: string; type?: MusicalType }): Promise<ShowCard[]> {
@@ -7,7 +7,7 @@ export async function getShows(filters?: { year?: string; type?: MusicalType }):
     .from('show')
     .select(`
       *,
-      musical:musical(id, name, type)
+      musical:musical(name, type)
     `)
     .order('show_time', { ascending: false })
 
@@ -18,35 +18,30 @@ export async function getShows(filters?: { year?: string; type?: MusicalType }):
   }
 
   if (filters?.type) {
-    // 需要通过musical关联查询type
-    const { data: musicalIds, error: musicalError } = await supabase
+    const { data: musicalNames, error: musicalError } = await supabase
       .from('musical')
-      .select('id')
+      .select('name')
       .eq('type', filters.type)
 
     if (musicalError) throw musicalError
-
-    if (musicalIds && musicalIds.length > 0) {
-      query = query.in('musical_id', musicalIds.map(m => m.id))
+    if (musicalNames && musicalNames.length > 0) {
+      query = query.in('musical_name', musicalNames.map(m => m.name))
     } else {
       return []
     }
   }
 
   const { data, error } = await query
-
   if (error) throw error
 
   return (data || []).map(show => ({
     ...show,
-    musical_name: (show.musical as any)?.name || '',
     musical_type: (show.musical as any)?.type || ''
   }))
 }
 
 // 获取场次详情
 export async function getShowById(id: string): Promise<ShowDetail> {
-  // 获取场次基本信息
   const { data: show, error: showError } = await supabase
     .from('show')
     .select(`
@@ -82,10 +77,11 @@ export async function getShowById(id: string): Promise<ShowDetail> {
 }
 
 // 创建场次
-export async function createShow(show: Omit<Show, 'id' | 'created_at' | 'updated_at'>) {
+export async function createShow(show: Omit<Show, 'id' | 'user_id' | 'created_at' | 'updated_at'>) {
+  const user_id = await getUserId()
   const { data, error } = await supabase
     .from('show')
-    .insert(show)
+    .insert({ ...show, user_id })
     .select()
     .single()
 
@@ -94,7 +90,7 @@ export async function createShow(show: Omit<Show, 'id' | 'created_at' | 'updated
 }
 
 // 更新场次
-export async function updateShow(id: string, show: Partial<Omit<Show, 'id' | 'created_at' | 'updated_at'>>) {
+export async function updateShow(id: string, show: Partial<Omit<Show, 'id' | 'user_id' | 'created_at' | 'updated_at'>>) {
   const { data, error } = await supabase
     .from('show')
     .update(show)
@@ -106,17 +102,8 @@ export async function updateShow(id: string, show: Partial<Omit<Show, 'id' | 'cr
   return data
 }
 
-// 删除场次（同时删除关联的演员评价）
+// 删除场次（同时删除关联的演员评价 via CASCADE）
 export async function deleteShow(id: string) {
-  // 先删除关联的演员评价
-  const { error: reviewError } = await supabase
-    .from('actor_review')
-    .delete()
-    .eq('show_id', id)
-
-  if (reviewError) throw reviewError
-
-  // 再删除场次
   const { error } = await supabase
     .from('show')
     .delete()
@@ -125,43 +112,8 @@ export async function deleteShow(id: string) {
   if (error) throw error
 }
 
-// 创建演员评价
-export async function createActorReview(review: Omit<ActorReview, 'id' | 'created_at' | 'updated_at'>) {
-  const { data, error } = await supabase
-    .from('actor_review')
-    .insert(review)
-    .select()
-    .single()
-
-  if (error) throw error
-  return data
-}
-
-// 更新演员评价
-export async function updateActorReview(id: string, review: Partial<Omit<ActorReview, 'id' | 'created_at' | 'updated_at'>>) {
-  const { data, error } = await supabase
-    .from('actor_review')
-    .update(review)
-    .eq('id', id)
-    .select()
-    .single()
-
-  if (error) throw error
-  return data
-}
-
-// 删除演员评价
-export async function deleteActorReview(id: string) {
-  const { error } = await supabase
-    .from('actor_review')
-    .delete()
-    .eq('id', id)
-
-  if (error) throw error
-}
-
 // 批量保存演员评价
-export async function saveActorReviews(showId: string, reviews: { artist_id: string; actor_type: ActorType; role: string; review: string }[]) {
+export async function saveActorReviews(showId: string, reviews: { artist_name: string; actor_type: ActorType; role: string; review: string }[]) {
   // 先删除该场次的所有演员评价
   await supabase
     .from('actor_review')
@@ -170,13 +122,15 @@ export async function saveActorReviews(showId: string, reviews: { artist_id: str
 
   // 再创建新的演员评价
   if (reviews.length > 0) {
+    const user_id = await getUserId()
     const reviewsToInsert = reviews.map((review, index) => ({
       show_id: showId,
-      artist_id: review.artist_id,
+      artist_name: review.artist_name,
       actor_order: index + 1,
       actor_type: review.actor_type,
       role: review.role,
-      review: review.review
+      review: review.review,
+      user_id
     }))
 
     const { error } = await supabase

@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useParams, useNavigate, useLocation } from 'react-router-dom'
-import { getArtistById, deleteArtist } from '../services/artist'
+import { getArtistByName, deleteArtist } from '../services/artist'
 import { cache } from '../hooks/useCache'
 import { showToast } from '../components/Toast'
 import ConfirmDialog from '../components/ConfirmDialog'
@@ -8,19 +8,20 @@ import { calcShowAvg } from '../lib/score'
 import type { ArtistDetail } from '../types'
 
 export default function ArtistDetailPage() {
-  const { id } = useParams<{ id: string }>()
+  const { name } = useParams<{ name: string }>()
   const navigate = useNavigate()
   const location = useLocation()
-  const [artist, setArtist] = useState<ArtistDetail | null>(() => id ? cache.get<ArtistDetail>(`musical_artist_${id}`) : null)
+  const decodedName = name ? decodeURIComponent(name) : ''
+  const [artist, setArtist] = useState<ArtistDetail | null>(() => decodedName ? cache.get<ArtistDetail>(`musical_artist_${decodedName}`) : null)
   const [loading, setLoading] = useState(!artist)
   const [showMenu, setShowMenu] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
 
-  const loadArtist = useCallback(async (artistId: string) => {
+  const loadArtist = useCallback(async (artistName: string) => {
     try {
-      const data = await getArtistById(artistId)
+      const data = await getArtistByName(artistName)
       setArtist(data)
-      cache.set(`musical_artist_${artistId}`, data)
+      cache.set(`musical_artist_${artistName}`, data)
     } catch (error) {
       console.error('加载演员详情失败:', error)
     } finally {
@@ -29,8 +30,8 @@ export default function ArtistDetailPage() {
   }, [])
 
   useEffect(() => {
-    if (id) loadArtist(id)
-  }, [id, loadArtist, location.key])
+    if (decodedName) loadArtist(decodedName)
+  }, [decodedName, loadArtist, location.key])
 
   const handleBack = () => {
     navigate(-1)
@@ -38,7 +39,7 @@ export default function ArtistDetailPage() {
 
   const handleEdit = () => {
     setShowMenu(false)
-    navigate(`/artists/${id}/edit`)
+    navigate(`/artists/${encodeURIComponent(decodedName)}/edit`)
   }
 
   const handleDelete = () => {
@@ -49,8 +50,8 @@ export default function ArtistDetailPage() {
   const handleDeleteConfirm = async () => {
     setShowDeleteConfirm(false)
     try {
-      await deleteArtist(id!)
-      cache.remove(`musical_artist_${id}`)
+      await deleteArtist(decodedName)
+      cache.remove(`musical_artist_${decodedName}`)
       Object.keys(localStorage).forEach(key => {
         if (key.startsWith('musical_artists_cache')) cache.remove(key)
         if (key.startsWith('musical_shows_cache')) cache.remove(key)
@@ -133,9 +134,9 @@ export default function ArtistDetailPage() {
             <div style={styles.musicalList}>
               {artist.musical_stats.map(stat => (
                 <span
-                  key={stat.musical_id}
+                  key={stat.musical_name}
                   style={styles.musicalTag}
-                  onClick={() => navigate(`/musicals/${stat.musical_id}`)}
+                  onClick={() => navigate(`/musicals/${encodeURIComponent(stat.musical_name)}`)}
                 >
                   {stat.musical_name} {stat.count} 场
                 </span>

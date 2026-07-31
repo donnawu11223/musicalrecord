@@ -1,21 +1,24 @@
 // 剧目类型枚举
 export type MusicalType = '中国音乐剧' | '非中音乐剧' | '话剧' | '舞剧'
 
-// 剧目表
+// 演员类型枚举
+export type ActorType = '主演' | '群演'
+
+// 剧目表（主键为 name）
 export interface Musical {
-  id: string
   name: string
   type: MusicalType
   brand: string
   plot: string
+  user_id: string
   created_at: string
   updated_at: string
 }
 
-// 演员表
+// 演员表（主键为 name）
 export interface Artist {
-  id: string
   name: string
+  user_id: string
   created_at: string
   updated_at: string
 }
@@ -24,16 +27,17 @@ export interface Artist {
 export interface Show {
   id: string
   show_time: string
-  musical_id: string
-  city?: string
-  theater?: string
-  seat?: string
-  plot_score?: number
-  visual_score?: number
-  acting_score?: number
-  script_score?: number
-  singing_score?: number
-  note?: string
+  musical_name: string
+  city: string
+  theater: string
+  seat: string
+  plot_score?: number | null
+  visual_score?: number | null
+  acting_score?: number | null
+  script_score?: number | null
+  singing_score?: number | null
+  note: string
+  user_id: string
   created_at: string
   updated_at: string
 }
@@ -42,17 +46,15 @@ export interface Show {
 export interface ActorReview {
   id: string
   show_id: string
-  artist_id: string
+  artist_name: string
   actor_order: number
-  actor_type: '主演' | '群演'
+  actor_type: ActorType
   role: string
   review: string
+  user_id: string
   created_at: string
   updated_at: string
 }
-
-// 演员类型枚举
-export type ActorType = '主演' | '群演'
 
 // 剧目卡片数据（包含统计信息）
 export interface MusicalCard extends Musical {
@@ -62,7 +64,6 @@ export interface MusicalCard extends Musical {
 
 // 场次卡片数据
 export interface ShowCard extends Show {
-  musical_name: string
   musical_type: MusicalType
 }
 
@@ -76,7 +77,7 @@ export interface ShowDetail extends Show {
 export interface MusicalDetail extends Musical {
   watch_count: number
   avg_score: number
-  artist_stats: { artist_id: string; artist_name: string; count: number }[]
+  artist_stats: { artist_name: string; count: number }[]
   shows: (Show & { avg_score: number })[]
 }
 
@@ -84,12 +85,6 @@ export interface MusicalDetail extends Musical {
 export interface ArtistDetail extends Artist {
   watch_count: number
   avg_score: number
-  musical_stats: { musical_id: string; musical_name: string; count: number }[]
+  musical_stats: { musical_name: string; count: number }[]
   shows: (Show & ActorReview & { musical_name: string; show_id: string })[]
-}
-
-// 年份选项
-export interface YearOption {
-  label: string
-  value: string | number
 }

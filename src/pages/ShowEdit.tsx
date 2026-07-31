@@ -16,7 +16,6 @@ const SCORE_LABELS: Record<MusicalType, string> = {
 
 interface ActorReviewInput {
   id?: string
-  artist_id: string
   artist_name: string
   actor_type: ActorType
   role: string
@@ -31,7 +30,6 @@ export default function ShowEditPage() {
   const [musicalDropdownPos, setMusicalDropdownPos] = useState({ top: 0, left: 0, width: 0 })
 
   const [formData, setFormData] = useState({
-    musical_id: '',
     musical_name: '',
     show_time: getDefaultDateTime(),
     city: '',
@@ -45,10 +43,10 @@ export default function ShowEditPage() {
     note: ''
   })
   const [actorReviews, setActorReviews] = useState<ActorReviewInput[]>([
-    { artist_id: '', artist_name: '', actor_type: '主演', role: '', review: '' }
+    { artist_name: '', actor_type: '主演', role: '', review: '' }
   ])
-  const [musicalOptions, setMusicalOptions] = useState<{ id: string; name: string; type: MusicalType }[]>([])
-  const [artistOptions, setArtistOptions] = useState<{ id: string; name: string }[]>([])
+  const [musicalOptions, setMusicalOptions] = useState<{ name: string; type: MusicalType }[]>([])
+  const [artistOptions, setArtistOptions] = useState<{ name: string }[]>([])
   const [musicalSearch, setMusicalSearch] = useState('')
   const [selectedMusicalType, setSelectedMusicalType] = useState<MusicalType | ''>('')
   const [submitting, setSubmitting] = useState(false)
@@ -119,8 +117,7 @@ export default function ShowEditPage() {
       // 将数据库返回的时间转换为本地时间格式
       const showTimeLocal = formatDbTimeToLocal(data.show_time)
       setFormData({
-        musical_id: data.musical_id,
-        musical_name: data.musical.name,
+        musical_name: data.musical_name,
         show_time: showTimeLocal,
         city: data.city ?? '',
         theater: data.theater ?? '',
@@ -136,7 +133,6 @@ export default function ShowEditPage() {
       if (data.actor_reviews.length > 0) {
         setActorReviews(data.actor_reviews.map(r => ({
           id: r.id,
-          artist_id: r.artist_id,
           artist_name: r.artist.name,
           actor_type: r.actor_type,
           role: r.role,
@@ -153,8 +149,8 @@ export default function ShowEditPage() {
     navigate(-1)
   }
 
-  const handleMusicalSelect = (musical: { id: string; name: string; type: MusicalType }) => {
-    setFormData({ ...formData, musical_id: musical.id, musical_name: musical.name })
+  const handleMusicalSelect = (musical: { name: string; type: MusicalType }) => {
+    setFormData({ ...formData, musical_name: musical.name })
     setSelectedMusicalType(musical.type)
     setMusicalSearch('')
     setShowMusicalDropdown(false)
@@ -173,9 +169,9 @@ export default function ShowEditPage() {
     setMusicalSearch('')
   }
 
-  const handleArtistSelect = (artist: { id: string; name: string }, index: number) => {
+  const handleArtistSelect = (artist: { name: string }, index: number) => {
     const newReviews = [...actorReviews]
-    newReviews[index] = { ...newReviews[index], artist_id: artist.id, artist_name: artist.name }
+    newReviews[index] = { ...newReviews[index], artist_name: artist.name }
     setActorReviews(newReviews)
     setArtistSearch('')
     setShowArtistDropdown(false)
@@ -212,7 +208,7 @@ export default function ShowEditPage() {
   }
 
   const handleAddActorReview = () => {
-    setActorReviews([...actorReviews, { artist_id: '', artist_name: '', actor_type: '主演', role: '', review: '' }])
+    setActorReviews([...actorReviews, { artist_name: '', actor_type: '主演', role: '', review: '' }])
   }
 
   const handleRemoveActorReview = (index: number) => {
@@ -486,10 +482,8 @@ export default function ShowEditPage() {
   const handleBatchConfirm = () => {
     if (batchParseResult.length === 0) return
     const newReviews: ActorReviewInput[] = batchParseResult.map(item => {
-      const artist = artistOptions.find(a => a.name === item.name)
       const actorType: ActorType = item.actor_type === '群演' ? '群演' : '主演'
       return {
-        artist_id: artist?.id || '',
         artist_name: item.name,
         actor_type: actorType,
         role: item.role,
@@ -505,7 +499,7 @@ export default function ShowEditPage() {
   const handleSubmit = async () => {
     if (submitting) return
     // 校验剧目不为空
-    if (!formData.musical_id) {
+    if (!formData.musical_name) {
       showToast({ content: '请选择剧目', icon: 'fail' })
       return
     }
@@ -517,17 +511,17 @@ export default function ShowEditPage() {
       const showTimeWithTimezone = localTime + '+08:00'
 
       const showData = {
-        musical_id: formData.musical_id,
+        musical_name: formData.musical_name,
         show_time: showTimeWithTimezone,
-        city: formData.city?.trim() || undefined,
-        theater: formData.theater?.trim() || undefined,
-        seat: formData.seat?.trim() || undefined,
+        city: formData.city?.trim() || '',
+        theater: formData.theater?.trim() || '',
+        seat: formData.seat?.trim() || '',
         plot_score: formData.plot_score || undefined,
         visual_score: formData.visual_score || undefined,
         acting_score: formData.acting_score || undefined,
         script_score: formData.script_score || undefined,
         singing_score: formData.singing_score || undefined,
-        note: formData.note?.trim() || undefined
+        note: formData.note?.trim() || ''
       }
 
       let showId: string
@@ -542,9 +536,9 @@ export default function ShowEditPage() {
       }
 
       // 保存演员评价
-      const validReviews = actorReviews.filter(r => r.artist_id)
+      const validReviews = actorReviews.filter(r => r.artist_name)
       await saveActorReviews(showId, validReviews.map(r => ({
-        artist_id: r.artist_id,
+        artist_name: r.artist_name,
         actor_type: r.actor_type,
         role: r.role,
         review: r.review
@@ -814,7 +808,7 @@ export default function ShowEditPage() {
             <div style={styles.dropdownList}>
               {filteredMusicals.map(musical => (
                 <div
-                  key={musical.id}
+                  key={musical.name}
                   style={styles.dropdownItem}
                   onClick={() => handleMusicalSelect(musical)}
                 >
@@ -855,7 +849,7 @@ export default function ShowEditPage() {
             <div style={styles.dropdownList}>
               {filteredArtists.map(artist => (
                 <div
-                  key={artist.id}
+                  key={artist.name}
                   style={styles.dropdownItem}
                   onClick={() => handleArtistSelect(artist, artistSearchIndex)}
                 >

@@ -1,16 +1,17 @@
 import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { showToast } from '../components/Toast'
-import { getMusicalById, createMusical, updateMusical, getMusicalNames } from '../services/musical'
+import { getMusicalByName, createMusical, updateMusical, getMusicalNames } from '../services/musical'
 import { cache } from '../hooks/useCache'
 import type { MusicalType } from '../types'
 
 const TYPE_OPTIONS: MusicalType[] = ['中国音乐剧', '非中音乐剧', '话剧', '舞剧']
 
 export default function MusicalEditPage() {
-  const { id } = useParams<{ id: string }>()
+  const { name: routeName } = useParams<{ name: string }>()
   const navigate = useNavigate()
-  const isEdit = !!id
+  const decodedName = routeName ? decodeURIComponent(routeName) : ''
+  const isEdit = !!decodedName
   const typePickerRef = useRef<HTMLDivElement>(null)
   const [pickerPosition, setPickerPosition] = useState({ top: 0, left: 0, width: 0 })
 
@@ -24,14 +25,14 @@ export default function MusicalEditPage() {
   const [submitting, setSubmitting] = useState(false)
 
   useEffect(() => {
-    if (isEdit && id) {
-      loadMusical(id)
+    if (isEdit && decodedName) {
+      loadMusical(decodedName)
     }
-  }, [id, isEdit])
+  }, [decodedName, isEdit])
 
-  const loadMusical = async (musicalId: string) => {
+  const loadMusical = async (musicalName: string) => {
     try {
-      const data = await getMusicalById(musicalId)
+      const data = await getMusicalByName(musicalName)
       setFormData({
         name: data.name,
         type: data.type,
@@ -60,7 +61,7 @@ export default function MusicalEditPage() {
     try {
       const existingMusicals = await getMusicalNames()
       const isDuplicate = existingMusicals.some(m =>
-        m.name === formData.name.trim() && m.id !== id
+        m.name === formData.name.trim() && m.name !== decodedName
       )
       if (isDuplicate) {
         showToast({ content: '剧目名称不可重复', icon: 'fail' })
@@ -85,8 +86,8 @@ export default function MusicalEditPage() {
         plot: formData.plot.trim()
       }
 
-      if (isEdit && id) {
-        await updateMusical(id, musicalData)
+      if (isEdit && decodedName) {
+        await updateMusical(decodedName, musicalData)
         showToast({ content: '保存成功', icon: 'success' })
       } else {
         await createMusical(musicalData)
@@ -94,7 +95,7 @@ export default function MusicalEditPage() {
       }
 
       // 清除缓存
-      if (id) cache.remove(`musical_detail_${id}`)
+      if (decodedName) cache.remove(`musical_detail_${decodedName}`)
       Object.keys(localStorage).forEach(key => {
         if (key.startsWith('musical_musicals_cache')) cache.remove(key)
         if (key.startsWith('musical_shows_cache')) cache.remove(key)

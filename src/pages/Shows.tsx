@@ -256,8 +256,10 @@ export default function Shows() {
             <Empty description="暂无场次记录" />
           ) : (
             <div style={styles.grid}>
-              {shows.map((show) => {
+              {shows.map((show, index) => {
                 const color = getTypeColor(show.musical_type)
+                // 场次序号：最早的场次为1，最新的为总数
+                const seqNumber = shows.length - index
                 return (
                   <article
                     key={show.id}
@@ -285,18 +287,23 @@ export default function Shows() {
                       <div style={{ ...styles.notch, right: -4 }}></div>
                     </div>
 
-                    {/* Ticket Stub (Date) */}
+                    {/* Ticket Stub (Date + Sequence) */}
                     <div style={styles.cardStub}>
                       {(() => {
                         const parts = formatDateParts(show.show_time)
                         return (
                           <>
-                            <div style={{ ...styles.monthText, color: color.text }}>{parts.month}</div>
-                            <div style={styles.dayYearContainer}>
-                              <div style={{ ...styles.dayText, color: color.text }}>{parts.day}</div>
+                            <div style={styles.stubLeft}>
+                              <div style={{ ...styles.monthText, color: color.text }}>{parts.month}</div>
                               <div style={{ ...styles.yearText, color: color.text }}>{parts.year}</div>
                             </div>
-                            <div style={{ ...styles.timeText, color: color.text }}>{parts.time}</div>
+                            <div style={styles.stubCenter}>
+                              <div style={{ ...styles.seqText, color: color.text }}>#{seqNumber}</div>
+                            </div>
+                            <div style={styles.stubRight}>
+                              <div style={{ ...styles.dayText, color: color.text }}>{parts.day}</div>
+                              <div style={{ ...styles.timeText, color: color.text }}>{parts.time}</div>
+                            </div>
                           </>
                         )
                       })()}
@@ -500,33 +507,45 @@ const styles: Record<string, React.CSSProperties> = {
     justifyContent: 'space-between',
     flexShrink: 0
   },
+  stubLeft: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'flex-start'
+  },
+  stubCenter: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  stubRight: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'flex-end'
+  },
   monthText: {
     fontSize: '8px',
     fontWeight: 700,
     textTransform: 'uppercase',
-    letterSpacing: '0.1em',
-    opacity: 0.7
-  },
-  dayYearContainer: {
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'center',
-    justifyContent: 'flex-start',
-    transform: 'translateY(-2px)'
-  },
-  dayText: {
-    fontSize: '20px',
-    fontWeight: 700,
-    lineHeight: 1
+    letterSpacing: '0.05em'
   },
   yearText: {
     fontSize: '8px',
     fontWeight: 600,
     opacity: 0.7
   },
+  seqText: {
+    fontSize: '14px',
+    fontWeight: 700,
+    lineHeight: 1
+  },
+  dayText: {
+    fontSize: '10px',
+    fontWeight: 700,
+    lineHeight: 1
+  },
   timeText: {
     fontSize: '8px',
-    fontWeight: 700,
+    fontWeight: 600,
     opacity: 0.7
   }
 }

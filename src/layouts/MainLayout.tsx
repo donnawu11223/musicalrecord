@@ -1,4 +1,5 @@
 import { Outlet, useNavigate, useLocation } from 'react-router-dom'
+import { signOut } from '../lib/supabase'
 
 const tabs = [
   { key: '/', title: '场次', icon: 'theater_comedy' },
@@ -12,14 +13,25 @@ export default function MainLayout() {
 
   const isActiveTab = (key: string) => {
     if (key === '/') {
-      // 场次：根路径或 /shows 开头的路径
       return location.pathname === '/' || location.pathname.startsWith('/shows')
     }
     return location.pathname.startsWith(key)
   }
 
+  const handleLogout = async () => {
+    await signOut()
+  }
+
+  // 判断是否在主页面（显示顶部退出按钮）
+  const isMainPage = location.pathname === '/' || location.pathname === '/musicals' || location.pathname === '/artists'
+
   return (
     <div style={styles.container}>
+      {isMainPage && (
+        <button style={styles.logoutBtn} onClick={handleLogout}>
+          <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>logout</span>
+        </button>
+      )}
       <Outlet />
       <nav style={styles.navBar}>
         {tabs.map(tab => {
@@ -49,6 +61,22 @@ const styles: Record<string, React.CSSProperties> = {
   container: {
     minHeight: '100vh',
     paddingBottom: '80px'
+  },
+  logoutBtn: {
+    position: 'fixed',
+    top: '18px',
+    right: '60px',
+    zIndex: 41,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: '32px',
+    height: '32px',
+    border: 'none',
+    backgroundColor: 'transparent',
+    color: '#707979',
+    cursor: 'pointer',
+    borderRadius: '50%'
   },
   navBar: {
     position: 'fixed',

@@ -1,4 +1,4 @@
-import { supabase } from '../lib/supabase'
+import { supabase, getUserId } from '../lib/supabase'
 import type { Artist, ArtistDetail } from '../types'
 import { calcMultiShowAvg } from '../lib/score'
 
@@ -11,11 +11,11 @@ export async function getArtists(): Promise<(Artist & { watch_count: number; avg
 
   if (error) throw error
 
-  // 获取所有场次和演员评价（只统计主演）
+  // 获取所有主演的场次和演员评价
   const { data: actorReviews, error: reviewError } = await supabase
     .from('actor_review')
     .select(`
-      artist_id,
+      artist_name,
       actor_type,
       actor_order,
       show:show(
@@ -30,54 +30,42 @@ export async function getArtists(): Promise<(Artist & { watch_count: number; avg
 
   if (reviewError) throw reviewError
 
-  // 按演员ID分组场次和order
+  // 按演员名称分组场次和order
   const artistShows = new Map<string, any[]>()
   const artistOrders = new Map<string, number[]>()
   actorReviews?.forEach((review: any) => {
-    const artistId = review.artist_id
+    const artistName = review.artist_name
     const show = review.show
     if (show) {
-      const existing = artistShows.get(artistId)
-      if (existing) {
-        existing.push(show)
-      } else {
-        artistShows.set(artistId, [show])
-      }
+      const existing = artistShows.get(artistName)
+      if (existing) existing.push(show)
+      else artistShows.set(artistName, [show])
     }
     if (review.actor_order != null) {
-      const orders = artistOrders.get(artistId)
-      if (orders) {
-        orders.push(review.actor_order)
-      } else {
-        artistOrders.set(artistId, [review.actor_order])
-      }
+      const orders = artistOrders.get(artistName)
+      if (orders) orders.push(review.actor_order)
+      else artistOrders.set(artistName, [review.actor_order])
     }
   })
 
   return (data || []).map(artist => {
-    const shows = artistShows.get(artist.id) || []
+    const shows = artistShows.get(artist.name) || []
     const watchCount = shows.length
     const avgScore = calcMultiShowAvg(shows)
-    const orders = artistOrders.get(artist.id) || []
+    const orders = artistOrders.get(artist.name) || []
     const avgOrder = orders.length > 0
       ? orders.reduce((sum, o) => sum + o, 0) / orders.length
       : Infinity
-    return {
-      ...artist,
-      watch_count: watchCount,
-      avg_score: avgScore,
-      avg_order: avgOrder
-    }
+    return { ...artist, watch_count: watchCount, avg_score: avgScore, avg_order: avgOrder }
   })
 }
 
 // 获取演员详情
-export async function getArtistById(id: string): Promise<ArtistDetail> {
-  // 获取演员基本信息
+export async function getArtistByName(name: string): Promise<ArtistDetail> {
   const { data: artist, error: artistError } = await supabase
     .from('artist')
     .select('*')
-    .eq('id', id)
+    .eq('name', name)
     .single()
 
   if (artistError) throw artistError
@@ -90,48 +78,40 @@ export async function getArtistById(id: string): Promise<ArtistDetail> {
       *,
       show:show(
         *,
-        musical:musical(id, name)
+        musical:musical(name, type)
       )
     `)
-    .eq('artist_id', id)
+    .eq('artist_name', name)
     .order('created_at', { ascending: false })
 
   if (reviewError) throw reviewError
 
-  // 计算统计信息（只统计主演的场次）
+  // 计算统计信息（只统计主演）
   const leadReviews = actorReviews?.filter((r: any) => r.actor_type === '主演') || []
   const shows = leadReviews.map((r: any) => r.show).filter(Boolean)
   const watchCount = shows.length
   const avgScore = calcMultiShowAvg(shows)
 
   // 统计剧目参与次数
-  const musicalStats = new Map<string, { musical_id: string; musical_name: string; count: number }>()
+  const musicalStats = new Map<string, { musical_name: string; count: number }>()
   actorReviews?.forEach((review: any) => {
-    const musical = review.show?.musical
-    if (musical) {
-      const existing = musicalStats.get(musical.id)
-      if (existing) {
-        existing.count++
-      } else {
-        musicalStats.set(musical.id, {
-          musical_id: musical.id,
-          musical_name: musical.name,
-          count: 1
-        })
-      }
+    const musicalName = review.show?.musical_name
+    if (musicalName) {
+      const existing = musicalStats.get(musicalName)
+      if (existing) existing.count++
+      else musicalStats.set(musicalName, { musical_name: musicalName, count: 1 })
     }
   })
 
   // 场次评价列表
   const showReviews = actorReviews?.map((review: any) => {
     const show = review.show
-    const musical = show?.musical
     const { show: _show, ...reviewWithoutShow } = review
     return {
       ...show,
       ...reviewWithoutShow,
       show_id: show?.id,
-      musical_name: musical?.name || ''
+      musical_name: show?.musical_name || ''
     }
   }).sort((a: any, b: any) => new Date(b.show_time).getTime() - new Date(a.show_time).getTime()) || []
 
@@ -145,10 +125,11 @@ export async function getArtistById(id: string): Promise<ArtistDetail> {
 }
 
 // 创建演员
-export async function createArtist(artist: Omit<Artist, 'id' | 'created_at' | 'updated_at'>) {
+export async function createArtist(artist: Pick<Artist, 'name'>) {
+  const user_id = await getUserId()
   const { data, error } = await supabase
     .from('artist')
-    .insert(artist)
+    .insert({ ...artist, user_id })
     .select()
     .single()
 
@@ -157,11 +138,11 @@ export async function createArtist(artist: Omit<Artist, 'id' | 'created_at' | 'u
 }
 
 // 更新演员
-export async function updateArtist(id: string, artist: Partial<Omit<Artist, 'id' | 'created_at' | 'updated_at'>>) {
+export async function updateArtist(name: string, artist: Partial<Pick<Artist, 'name'>>) {
   const { data, error } = await supabase
     .from('artist')
     .update(artist)
-    .eq('id', id)
+    .eq('name', name)
     .select()
     .single()
 
@@ -169,17 +150,15 @@ export async function updateArtist(id: string, artist: Partial<Omit<Artist, 'id'
   return data
 }
 
-// 删除演员（需先检查是否有关联场次）
-export async function deleteArtist(id: string) {
-  // 检查是否有关联场次
+// 删除演员
+export async function deleteArtist(name: string) {
   const { data: reviews, error: checkError } = await supabase
     .from('actor_review')
     .select('id')
-    .eq('artist_id', id)
+    .eq('artist_name', name)
     .limit(1)
 
   if (checkError) throw checkError
-
   if (reviews && reviews.length > 0) {
     throw new Error('该演员有关联的场次记录，无法删除')
   }
@@ -187,16 +166,16 @@ export async function deleteArtist(id: string) {
   const { error } = await supabase
     .from('artist')
     .delete()
-    .eq('id', id)
+    .eq('name', name)
 
   if (error) throw error
 }
 
 // 获取所有演员名称（用于下拉选择）
-export async function getArtistNames(): Promise<{ id: string; name: string }[]> {
+export async function getArtistNames(): Promise<{ name: string }[]> {
   const { data, error } = await supabase
     .from('artist')
-    .select('id, name')
+    .select('name')
     .order('name', { ascending: true })
 
   if (error) throw error

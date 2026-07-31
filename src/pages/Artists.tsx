@@ -31,7 +31,6 @@ export default function Artists() {
   const [artists, setArtists] = useState<ArtistCard[]>(() => cache.get<ArtistCard[]>(CACHE_KEY) || [])
   const [loading, setLoading] = useState(!artists.length)
   const [filterVisible, setFilterVisible] = useState(false)
-  const [selectedArtistId, setSelectedArtistId] = useState<string>('')
   const [selectedArtistName, setSelectedArtistName] = useState<string>('')
   const [nameSearch, setNameSearch] = useState('')
 
@@ -75,8 +74,8 @@ export default function Artists() {
     await loadArtists(true)
   }
 
-  const handleCardClick = (id: string) => {
-    navigate(`/artists/${id}`)
+  const handleCardClick = (name: string) => {
+    navigate(`/artists/${encodeURIComponent(name)}`)
   }
 
   const handleAddClick = () => {
@@ -89,13 +88,11 @@ export default function Artists() {
   }
 
   const handleArtistSelect = (artist: ArtistCard) => {
-    setSelectedArtistId(artist.id)
     setSelectedArtistName(artist.name)
     setFilterVisible(false)
   }
 
   const handleClearFilter = () => {
-    setSelectedArtistId('')
     setSelectedArtistName('')
     setFilterVisible(false)
   }
@@ -140,7 +137,7 @@ export default function Artists() {
                 <div
                   style={{
                     ...styles.filterOption,
-                    ...(!selectedArtistId ? styles.filterOptionActive : {})
+                    ...(!selectedArtistName ? styles.filterOptionActive : {})
                   }}
                   onClick={handleClearFilter}
                 >
@@ -148,10 +145,10 @@ export default function Artists() {
                 </div>
                 {filteredArtistsByName.map(artist => (
                   <div
-                    key={artist.id}
+                    key={artist.name}
                     style={{
                       ...styles.filterOption,
-                      ...(selectedArtistId === artist.id ? styles.filterOptionActive : {})
+                      ...(selectedArtistName === artist.name ? styles.filterOptionActive : {})
                     }}
                     onClick={() => handleArtistSelect(artist)}
                   >
@@ -178,20 +175,20 @@ export default function Artists() {
         >
         {loading && !artists.length ? (
           <div style={styles.loading}>加载中...</div>
-        ) : (selectedArtistId ? artists.filter(a => a.id === selectedArtistId) : artists).length === 0 ? (
+        ) : (selectedArtistName ? artists.filter(a => a.name === selectedArtistName) : artists).length === 0 ? (
           <Empty description="暂无演员记录" />
         ) : (
           <div style={styles.grid}>
-            {(selectedArtistId ? artists.filter(a => a.id === selectedArtistId) : artists).map(artist => {
+            {(selectedArtistName ? artists.filter(a => a.name === selectedArtistName) : artists).map(artist => {
               const color = getArtistColor(artist.name)
               return (
                 <article
-                  key={artist.id}
+                  key={artist.name}
                   style={{
                     ...styles.card,
                     backgroundColor: color.bg
                   }}
-                  onClick={() => handleCardClick(artist.id)}
+                  onClick={() => handleCardClick(artist.name)}
                 >
                   {/* 上方：演员名称 */}
                   <div style={styles.cardMain}>

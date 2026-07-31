@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useParams, useNavigate, useLocation } from 'react-router-dom'
-import { getMusicalById, deleteMusical } from '../services/musical'
+import { getMusicalByName, deleteMusical } from '../services/musical'
 import { cache } from '../hooks/useCache'
 import { showToast } from '../components/Toast'
 import ConfirmDialog from '../components/ConfirmDialog'
@@ -26,19 +26,20 @@ const TYPE_TAG_STYLES: Record<MusicalType, React.CSSProperties> = {
 }
 
 export default function MusicalDetailPage() {
-  const { id } = useParams<{ id: string }>()
+  const { name } = useParams<{ name: string }>()
   const navigate = useNavigate()
   const location = useLocation()
-  const [musical, setMusical] = useState<MusicalDetail | null>(() => id ? cache.get<MusicalDetail>(`musical_detail_${id}`) : null)
+  const decodedName = name ? decodeURIComponent(name) : ''
+  const [musical, setMusical] = useState<MusicalDetail | null>(() => decodedName ? cache.get<MusicalDetail>(`musical_detail_${decodedName}`) : null)
   const [loading, setLoading] = useState(!musical)
   const [showMenu, setShowMenu] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
 
-  const loadMusical = useCallback(async (musicalId: string) => {
+  const loadMusical = useCallback(async (musicalName: string) => {
     try {
-      const data = await getMusicalById(musicalId)
+      const data = await getMusicalByName(musicalName)
       setMusical(data)
-      cache.set(`musical_detail_${musicalId}`, data)
+      cache.set(`musical_detail_${musicalName}`, data)
     } catch (error) {
       console.error('加载剧目详情失败:', error)
     } finally {
@@ -47,8 +48,8 @@ export default function MusicalDetailPage() {
   }, [])
 
   useEffect(() => {
-    if (id) loadMusical(id)
-  }, [id, loadMusical, location.key])
+    if (decodedName) loadMusical(decodedName)
+  }, [decodedName, loadMusical, location.key])
 
   const handleBack = () => {
     navigate(-1)
@@ -56,7 +57,7 @@ export default function MusicalDetailPage() {
 
   const handleEdit = () => {
     setShowMenu(false)
-    navigate(`/musicals/${id}/edit`)
+    navigate(`/musicals/${encodeURIComponent(decodedName)}/edit`)
   }
 
   const handleDelete = () => {
@@ -67,8 +68,8 @@ export default function MusicalDetailPage() {
   const handleDeleteConfirm = async () => {
     setShowDeleteConfirm(false)
     try {
-      await deleteMusical(id!)
-      cache.remove(`musical_detail_${id}`)
+      await deleteMusical(decodedName)
+      cache.remove(`musical_detail_${decodedName}`)
       Object.keys(localStorage).forEach(key => {
         if (key.startsWith('musical_musicals_cache')) cache.remove(key)
         if (key.startsWith('musical_shows_cache')) cache.remove(key)
@@ -176,9 +177,9 @@ export default function MusicalDetailPage() {
             <div style={styles.artistList}>
               {musical.artist_stats.map(artist => (
                 <span
-                  key={artist.artist_id}
+                  key={artist.artist_name}
                   style={styles.artistTag}
-                  onClick={() => navigate(`/artists/${artist.artist_id}`)}
+                  onClick={() => navigate(`/artists/${encodeURIComponent(artist.artist_name)}`)}
                 >
                   {artist.artist_name} {artist.count} 场
                 </span>
