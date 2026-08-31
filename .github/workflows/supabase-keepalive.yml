@@ -1,0 +1,40 @@
+name: Supabase keepalive
+
+on:
+  schedule:
+    # GitHub cron uses UTC. Run once per day to keep the Free project active.
+    - cron: '17 2 * * *'
+  workflow_dispatch:
+
+# This workflow only makes a read-only request and does not need repository access.
+permissions: {}
+
+jobs:
+  keepalive:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Read from Supabase REST API
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ -z "$SUPABASE_URL" || -z "$SUPABASE_ANON_KEY" ]]; then
+            echo "SUPABASE_URL and SUPABASE_ANON_KEY must be configured as GitHub Repository Secrets." >&2
+            exit 1
+          fi
+
+          curl \
+            --fail-with-body \
+            --silent \
+            --show-error \
+            --retry 3 \
+            --retry-all-errors \
+            --max-time 30 \
+            --header "apikey: $SUPABASE_ANON_KEY" \
+            --header "Authorization: Bearer $SUPABASE_ANON_KEY" \
+            --header "Cache-Control: no-cache" \
+            "$SUPABASE_URL/rest/v1/musical?select=name&limit=1"
